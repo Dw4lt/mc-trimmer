@@ -5,7 +5,7 @@
             "name": "PDM Cli Example",
             "type": "python",
             "request": "launch",
-            "module": "my_project",
+            "module": "mc-trimmer",
             "console": "integratedTerminal",
             "env": {
                 "PYTHONPATH": "__pypackages__/3.9/lib",
