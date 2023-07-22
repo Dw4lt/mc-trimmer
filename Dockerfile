@@ -21,7 +21,7 @@ RUN apt update && \
 
 # Copy files required for building project.
 COPY pyproject.toml pdm.lock README.md LICENSE ./
-COPY ./my_project/ ./my_project/
+COPY ./mc-trimmer/ ./mc-trimmer/
 
 # Install dependencies and build project.
 # Copy files to /my_pkgs/ for easier access in the production stage.
@@ -43,4 +43,4 @@ ENV PYTHONPATH=./pkgs
 COPY --from=builder /my_pkgs ./pkgs
 
 # Run your project as a module.
-CMD ["python", "-m", "my_project"]
+CMD ["python", "-m", "mc-trimmer"]
