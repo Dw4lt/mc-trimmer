@@ -1,0 +1,15 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "PDM Cli Example",
+            "type": "python",
+            "request": "launch",
+            "module": "my_project",
+            "console": "integratedTerminal",
+            "env": {
+                "PYTHONPATH": "__pypackages__/3.9/lib",
+            },
+        }
+    ]
+}
