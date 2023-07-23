@@ -4,7 +4,7 @@
 from abc import abstractmethod
 from pathlib import Path
 import struct
-from typing import Iterable, Self, Type, TypeVar
+from typing import Any, Callable, Iterable, Self, Type, TypeVar
 from enum import IntEnum
 
 
@@ -17,9 +17,12 @@ class Sizes(IntEnum):
 
 
 class Meta(type):
-    def __mul__(mcs: type[T], i: int) -> 'ArrayOfSerializable[T]':
+    def __mul__(mcs: Type[T], i: int) -> Callable[[], 'ArrayOfSerializable[T]']:
+        '''With T = Type[Serializable], T * int = ArrayofSerializable[T] of size int'''
         assert(Serializable in mcs.__mro__)
-        return ArrayOfSerializable[mcs](mcs, int(i))
+        def curry():
+            return ArrayOfSerializable[mcs](mcs, i)
+        return curry
 
 
 class Serializable(metaclass=Meta):
@@ -102,7 +105,6 @@ TimestampData = Timestamp * 1024
 ChunkLocationData = ChunkLocation * 1024
 
 
-
 def get_regions(path: str | Path) -> Iterable[Path]:
     p: Path = Path(path)
     if p.exists() and p.is_dir():
@@ -112,8 +114,8 @@ def get_regions(path: str | Path) -> Iterable[Path]:
 
 class Region:
     def __init__(self, chunk_location_data: bytes, timestamps_data: bytes) -> None:
-        self.__locations = (ChunkLocation * 1024).from_bytes(chunk_location_data)
-        self.__timestamps = (Timestamp * 1024).from_bytes(timestamps_data)
+        self.__locations = ChunkLocationData().from_bytes(chunk_location_data)
+        self.__timestamps = TimestampData().from_bytes(timestamps_data)
 
         # Test:
         a = bytes(self.__locations)
