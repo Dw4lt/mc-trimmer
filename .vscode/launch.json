@@ -5,11 +5,28 @@
             "name": "PDM Cli Example",
             "type": "python",
             "request": "launch",
-            "module": "mc-trimmer",
+            "module": "mc_trimmer",
             "console": "integratedTerminal",
+            "justMyCode": false,
+        },
+        {
+            "name": "Pytest",
+            "type": "python",
+            "request": "launch",
+            "module": "pytest",
+            "console": "integratedTerminal",
+            "justMyCode": true,
             "env": {
-                "PYTHONPATH": "__pypackages__/3.9/lib",
+                "PY_COLORS": "1",
+                "PYTEST_RAISE": "1",
             },
-        }
+            "args": [
+                "--rootdir=.",
+                "--capture=tee-sys",
+                "-v",
+                "tests"
+            ]
+        },
+
     ]
 }

@@ -4,3 +4,4 @@ __pypackages__
 *.pyc
 dist.pdm-python
 .pdm-python
+*.egg-info
