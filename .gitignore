@@ -3,3 +3,4 @@ __pypackages__
 .pdm.toml
 *.pyc
 dist.pdm-python
+*.egg-info

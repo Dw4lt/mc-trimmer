@@ -1,8 +1,11 @@
 {
-    "python.autoComplete.extraPaths": [
-        "__pypackages__/3.9/lib"
+    "python.analysis.typeCheckingMode": "basic",
+    "python.testing.pytestArgs": [
+        "tests"
     ],
-    "python.analysis.extraPaths": [
-        "__pypackages__/3.9/lib"
-    ]
+    "python.testing.unittestEnabled": false,
+    "python.testing.pytestEnabled": true,
+    "editor.formatOnSave": true,
+    "files.trimTrailingWhitespace": true,
+    "editor.formatOnSaveMode": "file",
 }

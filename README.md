@@ -9,7 +9,7 @@ This project was made to be as broad as possible in its use. If you don't need s
     - dependencies through pdm (`pdm install`)
         - into the local `__pypackages__` folder
             - to run your project as a python module
-                - locally (`python -m mc-trimmer`)
+                - locally (`python -m mc_trimmer`)
                 - in a docker container (see [Dockerfile](./Dockerfile))
             - to be accessed by your IDE for intellisense (see [.vscode/settings.json](./.vscode/settings.json))
             - to be accessed by your debug launch configuration (see [.vscode/launch.json](./.vscode/launch.json))

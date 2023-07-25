@@ -1,11 +1,13 @@
 [project]
-name = "mc-trimmer"
+name = "mc_trimmer"
 version = "0.1.0"
 description = ""
 authors = [
-    {name = "Dw4lt", email = ""},
+    {name = "Dw4lt"},
 ]
-dependencies = []
+dependencies = [
+    "NBT>=1.5.1",
+]
 requires-python = ">=3.10"
 readme = "README.md"
 license = {text = "MIT"}
@@ -14,3 +16,21 @@ license = {text = "MIT"}
 [build-system]
 requires = ["setuptools>=61", "wheel"]
 build-backend = "setuptools.build_meta"
+
+[tool.pdm.dev-dependencies]
+dev = [
+    "black>=23.7.0",
+    "pytest>=7.4.0",
+]
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "--rootdir=. --capture=tee-sys -v -o console_output_style=classic"
+log_cli = true
+log_cli_level = "INFO"
+log_cli_format = "[%(levelname)s] (%(filename)s:%(lineno)s): %(message)s "
+log_cli_date_format = "%Y-%m-%d %H:%M:%S"
+
+[tool.black]
+line-length = 120
+
