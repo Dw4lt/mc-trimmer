@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Callable
 
 import pytest
+
 from mc_trimmer import *
 
 current_dir = Path(os.path.dirname(__file__))
@@ -26,10 +27,10 @@ def pytest_internalerror(excinfo):
     "file,filter",
     [
         ("simple.mca", None),
-        ("remove_one.mca", lambda nbt: nbt["xPos"].value == 1 and nbt["zPos"].value == 288),
-        ("r.0.0.mca", lambda nbt: nbt["xPos"].value == 0 and nbt["zPos"].value == 0),
-        ("checkerboard.mca", lambda nbt: (nbt["xPos"].value + nbt["zPos"].value) % 2),
-        ("complex_checkerboard.mca", lambda nbt: (nbt["xPos"].value + nbt["zPos"].value) % 2),
+        ("remove_one.mca", lambda chunk: chunk.xPos == 1 and chunk.zPos == 288),
+        ("r.0.0.mca", lambda chunk: chunk.xPos == 0 and chunk.zPos == 0),
+        ("checkerboard.mca", lambda chunk: (chunk.xPos + chunk.zPos) % 2),
+        ("complex_checkerboard.mca", lambda chunk: (chunk.xPos + chunk.zPos) % 2),
     ],
 )
 def test_wtf(file: str, filter: Callable | None):
@@ -42,7 +43,7 @@ def test_wtf(file: str, filter: Callable | None):
 
     b = bytes(region)
 
-    #region.save_to_file(test_dir / file)
+    # region.save_to_file(test_dir / file)
 
     with open(output_file, "+rb") as f:
         a = f.read()
