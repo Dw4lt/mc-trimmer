@@ -1,19 +1,36 @@
 #!/usr/bin/env python
 
 
+import logging
+import struct
+import zlib
 from abc import abstractmethod
 from dataclasses import dataclass
-import io
-from pathlib import Path
-import struct
-from typing import Callable, Iterable, Self, Type, TypeVar
 from enum import IntEnum
-import zlib
-from nbt.nbt import TAG_Compound
+from pathlib import Path
+from typing import Callable, Generic, Iterable, Self, Type, TypeVar
+
+LOG = logging.getLogger(__name__)
 
 
 PATH = "./data"
-T = TypeVar("T", bound="Serializable")
+T = TypeVar("T")
+S = TypeVar("S", bound="Serializable")
+
+
+class Strategy(Generic[T]):
+    def __init__(self, typ: bytes, payload_size: int, unpack: bytes, resulting_type: Type[T]) -> None:
+        self.typ: bytes = typ
+        self.payload_size: int = payload_size
+        self.unpack: bytes = unpack
+        self.resulting_type: Type[T] = resulting_type
+
+
+BYTE_STRATEGY = Strategy(typ=b"\x01", payload_size=1, unpack=b">c", resulting_type=int)
+INT_STRATEGY = Strategy(typ=b"\x03", payload_size=4, unpack=b">i", resulting_type=int)
+LONG_STRATEGY = Strategy(typ=b"\x04", payload_size=8, unpack=b">Q", resulting_type=int)
+FLOAT_STRATEGY = Strategy(typ=b"\x05", payload_size=4, unpack=b">f", resulting_type=float)
+DOUBLE_STRATEGY = Strategy(typ=b"\x06", payload_size=8, unpack=b">d", resulting_type=float)
 
 
 class Sizes(IntEnum):
@@ -24,7 +41,7 @@ class Sizes(IntEnum):
 
 
 class Meta(type):
-    def __mul__(mcs: Type[T], i: int) -> Callable[[], "ArrayOfSerializable[T]"]:
+    def __mul__(mcs: Type[S], i: int) -> Callable[[], "ArrayOfSerializable[S]"]:
         """With T = Type[Serializable], T * int = ArrayofSerializable[T] of size int"""
         assert Serializable in mcs.__mro__
 
@@ -51,14 +68,14 @@ class Serializable(metaclass=Meta):
         ...
 
 
-class ArrayOfSerializable(list[T]):
-    def __init__(self, cls: type[T], len: int) -> None:
+class ArrayOfSerializable(list[S]):
+    def __init__(self, cls: type[S], len: int) -> None:
         self._len: int = len
         self._cls: Type[Serializable] = cls
 
     def from_bytes(self, data: bytes) -> Self:
         for i in range(self._len):
-            obj: T = self._cls.from_bytes(data[i * self._cls.SIZE : (i + 1) * self._cls.SIZE])  # type: ignore
+            obj: S = self._cls.from_bytes(data[i * self._cls.SIZE : (i + 1) * self._cls.SIZE])  # type: ignore
             self.append(obj)
         return self
 
@@ -125,16 +142,42 @@ class Chunk(Serializable):
     ) -> None:
         self._compression: int = compression
         self._compressed_data: bytes = compressed_data
-        self.nbt: TAG_Compound
 
         if length > 0:
-            decompressed_data = zlib.decompress(data)
-            member_data = decompressed_data[3:]  # 3 bytes removes root tag opening
-            self.nbt = TAG_Compound(buffer=io.BytesIO(member_data))
+            self.decompressed_data = zlib.decompress(data)[3:]  # 3 bytes removes root tag opening
+            pass
 
-            assert self.nbt["InhabitedTime"].value >= 0
-        else:
-            self.nbt = TAG_Compound()
+    @property
+    def InhabitedTime(self) -> int:
+        velue = self._fast_get_property(self.decompressed_data, b"InhabitedTime", LONG_STRATEGY)
+        assert velue >= 0
+        return velue
+
+    @property
+    def xPos(self) -> int:
+        return self._fast_get_property(self.decompressed_data, b"xPos", INT_STRATEGY)
+
+    @property
+    def yPos(self) -> int:
+        return self._fast_get_property(self.decompressed_data, b"yPos", INT_STRATEGY)
+
+    @property
+    def zPos(self) -> int:
+        return self._fast_get_property(self.decompressed_data, b"zPos", INT_STRATEGY)
+
+    def _fast_get_property(self, decompressed_data: bytes, name: bytes, strategy: Strategy[T]) -> T:
+        """Quick-fetch property by seeking through the byte-stream.
+
+        If a property can appear more than once, this will break!"""
+        prop_sequence = strategy.typ + struct.pack(">H", len(name)) + name
+        start = decompressed_data.find(prop_sequence)
+        if start < 0:
+            raise Exception(f"Prop '{name.decode()}' not found!")
+        (value,) = struct.unpack(
+            strategy.unpack,
+            decompressed_data[start + len(prop_sequence) : start + len(prop_sequence) + strategy.payload_size],
+        )
+        return value
 
     @classmethod
     def from_bytes(cls: type[Self], data: bytes) -> Self:
@@ -148,25 +191,15 @@ class Chunk(Serializable):
                 # print(f"Warning: post-chunk data was padded with non-zero values: {bytes(post_chunk_data[:100])}")
         return cls(length=length, compression=compression, data=nbt_data, compressed_data=data)
 
-    def conditional_reset(self, condition: Callable[[TAG_Compound], bool]) -> bool:
+    def conditional_reset(self, condition: Callable[[Self], bool]) -> bool:
         if self._compressed_data != b"":
-            if condition(self.nbt):
+            if condition(self):
                 self._compressed_data = b""
-                self.nbt = TAG_Compound()
                 return True
         return False
 
     def __bytes__(self) -> bytes:
         return bytes(self._compressed_data)
-        if self._compressed_data != b"":
-            l1 = len(self._compressed_data)
-            data = struct.pack(">IB", l1 + 1, self._compression) + self._compressed_data  # +1 for compression scheme
-            l = len(data)
-            assert l1 + Sizes.CHUNK_HEADER_SIZE == l
-            padding = (4096 - (l % 4096)) % 4096
-            data = data + b"\x00" * padding
-            return bytes(self._compressed_data)
-        return b""
 
     @property
     def SIZE(self) -> int:
@@ -201,7 +234,6 @@ class Region:
         self.dirty: bool = False
         self.__data: bytes = data
 
-        # TODO: Delete!
         locations = ChunkLocationData().from_bytes(chunk_location_data)
         timestamps = TimestampData().from_bytes(timestamps_data)
 
@@ -229,7 +261,7 @@ class Region:
 
         return
 
-    def trim(self, condition: Callable[[TAG_Compound], bool]):
+    def trim(self, condition: Callable[[Chunk], bool]):
         for cd in self.chunk_data:
             self.dirty |= cd.chunk.conditional_reset(condition)
 
@@ -250,7 +282,6 @@ class Region:
         chunks: bytes = b""
 
         # Adjust offsets and sizes, store chunk data
-        prev = ChunkData(Chunk(), ChunkLocation(offset, 0), Timestamp(0), 0)
         for cd in sorted(self.chunk_data, key=lambda combo: combo.location.offset):
             chunk_data = bytes(cd.chunk)
             length = len(chunk_data)
@@ -279,5 +310,6 @@ class Region:
         if len(data) > Sizes.CHUNK_LOCATION_DATA_SIZE + Sizes.TIMESTAMPS_DATA_SIZE:
             with open(region, "wb") as f:
                 f.write(data)
+                LOG.info(f"Written {region}")
         else:
-            print(f"Deleting {region}")
+            LOG.info(f"Deleting {region}")
