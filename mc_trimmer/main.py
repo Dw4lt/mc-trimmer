@@ -2,6 +2,7 @@
 
 
 import logging
+import os
 import struct
 import zlib
 from abc import abstractmethod
@@ -313,3 +314,5 @@ class Region:
                 LOG.info(f"Written {region}")
         else:
             LOG.info(f"Deleting {region}")
+            if region.exists() and region.is_file():
+                os.remove(region)
