@@ -26,14 +26,14 @@ def pytest_internalerror(excinfo):
 @pytest.mark.parametrize(
     "file,filter",
     [
-        ("simple.mca", None),
-        ("remove_one.mca", lambda chunk: chunk.xPos == 1 and chunk.zPos == 288),
-        ("r.0.0.mca", lambda chunk: chunk.xPos == 0 and chunk.zPos == 0),
-        ("checkerboard.mca", lambda chunk: (chunk.xPos + chunk.zPos) % 2),
-        ("complex_checkerboard.mca", lambda chunk: (chunk.xPos + chunk.zPos) % 2),
+        ("region/simple.mca", None),
+        ("region/remove_one.mca", lambda chunk: chunk.xPos == 1 and chunk.zPos == 288),
+        ("region/r.0.0.mca", lambda chunk: chunk.xPos == 0 and chunk.zPos == 0),
+        ("region/checkerboard.mca", lambda chunk: (chunk.xPos + chunk.zPos) % 2),
+        ("region/complex_checkerboard.mca", lambda chunk: (chunk.xPos + chunk.zPos) % 2),
     ],
 )
-def test_wtf(file: str, filter: Callable | None):
+def test_RegionFile(file: str, filter: Callable | None):
     input_file = input_dir / file
     output_file = output_dir / file
 
