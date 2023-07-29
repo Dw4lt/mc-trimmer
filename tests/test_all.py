@@ -37,7 +37,7 @@ def test_wtf(file: str, filter: Callable | None):
     input_file = input_dir / file
     output_file = output_dir / file
 
-    region = Region.from_file(input_file)
+    region = RegionFile.from_file(input_file)
     if filter is not None:
         region.trim(filter)
 

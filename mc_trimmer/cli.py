@@ -158,6 +158,6 @@ def process_region(criteria: Callable[[Chunk], bool], region_path: Path, paths: 
 
 def process_batch(criteria: str, paths: Paths, regions: Iterable[Path]):
     l = len(regions)
-    for i, r in enumerate(regions):
+    for i, r in enumerate(regions, start=1):
         print(f"Processing region {r} ({i}/{l})")
         process_region(CRITERIA_MAPPING[criteria], r, paths)
