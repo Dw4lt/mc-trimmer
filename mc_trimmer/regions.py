@@ -1,7 +1,3 @@
-#!/usr/bin/env python
-
-
-import logging
 import os
 import struct
 import zlib
