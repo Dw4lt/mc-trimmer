@@ -89,6 +89,6 @@ def run():
 
         foo = partial(process_batch, args.trimming_criteria, paths)
         with Pool(parallel) as p:
-            res = p.map(func=foo, iterable=(a for a in work))
+            res = p.map(func=foo, iterable=[a for a in work])
             pass
         pass

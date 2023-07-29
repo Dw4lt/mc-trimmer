@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from pathlib import Path
 import shutil
-from typing import Callable, Iterable
+from typing import Callable
 from mc_trimmer.entities import EntitiesFile
 from mc_trimmer.primitives import Paths
 from mc_trimmer.regions import Chunk, RegionFile
@@ -37,7 +37,7 @@ def process_region(criteria: Callable[[Chunk], bool], region_path: Path, paths: 
             shutil.copy2(region_path, paths.outp_region / region_path.name)
 
 
-def process_batch(criteria: str, paths: Paths, regions: Iterable[Path]):
+def process_batch(criteria: str, paths: Paths, regions: list[Path]):
     l = len(regions)
     for i, r in enumerate(regions, start=1):
         print(f"Processing region {r} ({i}/{l})")
