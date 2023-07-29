@@ -1,19 +1,17 @@
 import os
 import struct
 import zlib
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Iterable, Self
-from .entities import EntitiesFile
 
 from mc_trimmer.primitives import (
     INT_STRATEGY,
     LONG_STRATEGY,
+    ChunkDataBase,
     LocationData,
+    RegionLike,
     Serializable,
-    SerializableLocation,
     Sizes,
-    Timestamp,
     TimestampData,
     fast_get_property,
 )
@@ -86,20 +84,9 @@ def get_regions(path: str | Path) -> Iterable[Path]:
     raise Exception(f"Invalid input <{p}>")
 
 
-@dataclass
-class ChunkData:
-    chunk: Chunk
-    location: SerializableLocation
-    timestamp: Timestamp
-    index: int
-
-    def __lt__(self, other: Self) -> bool:
-        return self.index < other.index
-
-
-class RegionFile:
+class RegionFile(RegionLike):
     def __init__(self, chunk_location_data: bytes, timestamps_data: bytes, data: bytes) -> None:
-        self.chunk_data: list[ChunkData] = []
+        self.chunk_data: list[ChunkDataBase[Chunk]] = []
         self.dirty: bool = False
         self.__data: bytes = data
 
@@ -118,17 +105,15 @@ class RegionFile:
                 b = bytes(chunk)
                 a = bytes(data_slice)
                 assert a == b
-                self.chunk_data.append(ChunkData(chunk=chunk, location=loc, timestamp=ts, index=i))
-
-        # t1, t2 = bytes(data), bytes(self)
-        # w1, w2 = t1[:4096], t2[:4096]
-        # assert w1 == w2  # Only true if no chunks were modified since inception
-
+                self.chunk_data.append(ChunkDataBase[Chunk](data=chunk, location=loc, timestamp=ts, index=i))
         return
+
+    def __bytes__(self) -> bytes:
+        return RegionFile.to_bytes(data=self.chunk_data)
 
     def trim(self, condition: Callable[[Chunk], bool]):
         for cd in self.chunk_data:
-            self.dirty |= cd.chunk.conditional_reset(condition)
+            self.dirty |= cd.data.conditional_reset(condition)
 
     @classmethod
     def from_file(cls, region: Path) -> Self:
@@ -139,45 +124,6 @@ class RegionFile:
                 Sizes.LOCATION_DATA_SIZE : Sizes.LOCATION_DATA_SIZE + Sizes.TIMESTAMPS_DATA_SIZE
             ]
             return RegionFile(chunk_location_data, timestamps_data, data)
-
-    def __bytes__(self) -> bytes:
-        offset: int = 2
-        locations: bytes = b""
-        timestamps: bytes = b""
-        chunks: bytes = b""
-
-        # Adjust offsets and sizes, store chunk data
-        for cd in sorted(self.chunk_data, key=lambda combo: combo.location.offset):
-            chunk_data = bytes(cd.chunk)
-            length = len(chunk_data)
-
-            assert length % 4096 == 0
-            if length == 0 and cd.location.size != 0:
-                pass
-            cd.location.size = length // 4096
-            if cd.location.size == 0:
-                cd.location.offset = 0
-                cd.timestamp.timestamp = 0
-            else:
-                chunks += chunk_data
-                cd.location.offset = offset
-                offset += cd.location.size
-
-        # Convert tables to binary
-        previous = 2
-        for cd in sorted(self.chunk_data, key=lambda combo: combo.index):
-            if cd.index - previous > 1:
-                bytes_to_add = b"\x00\x00\x00\x00" * (cd.index - previous - 1)
-                locations += bytes_to_add
-                timestamps += bytes_to_add
-            locations += bytes(cd.location)
-            timestamps += bytes(cd.timestamp)
-            previous = cd.index
-        bytes_to_add = b"\x00\x00\x00\x00" * (1024 - previous - 1)
-        locations += bytes_to_add
-        timestamps += bytes_to_add
-
-        return locations + timestamps + chunks
 
     def save_to_file(self, region: Path) -> None:
         data = bytes(self)

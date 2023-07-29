@@ -1,64 +1,14 @@
-import logging.handlers
-import shutil
 from argparse import SUPPRESS, ArgumentParser
-from pathlib import Path
-from typing import Callable, Iterable
-from multiprocessing import cpu_count
-from multiprocess.pool import Pool
 from functools import partial
+from multiprocessing import cpu_count
+from pathlib import Path
 
-from . import Chunk, RegionFile, get_regions
+from multiprocess.pool import Pool
+
+from mc_trimmer.main import CRITERIA_MAPPING, process_batch
+
+from . import Paths, get_regions
 from .__version__ import __version__
-
-
-CRITERIA_MAPPING: dict[str, Callable[[Chunk], bool]] = {
-    "inhabited_time<15s": lambda chunk: chunk.InhabitedTime <= 1200 * 0.25,
-    "inhabited_time<30s": lambda chunk: chunk.InhabitedTime <= 1200 * 0.5,
-    "inhabited_time<1m": lambda chunk: chunk.InhabitedTime <= 1200,
-    "inhabited_time<2m": lambda chunk: chunk.InhabitedTime <= 1200 * 2,
-    "inhabited_time<3m": lambda chunk: chunk.InhabitedTime <= 1200 * 3,
-    "inhabited_time<5m": lambda chunk: chunk.InhabitedTime <= 1200 * 5,
-    "inhabited_time<10m": lambda chunk: chunk.InhabitedTime <= 1200 * 10,
-}
-
-
-class Paths:
-    def __init__(self, inp: Path, outp: Path, backup: Path | None = None) -> None:
-        if backup == inp:
-            raise Exception("Input and backup directories cannot be the same.")
-        if backup == outp:
-            raise Exception("Output and backup directories cannot be the same.")
-        if not inp.exists():
-            raise Exception("Input directory must exist.")
-
-        self.inp_region: Path = inp / "region"
-        self.inp_poi: Path = inp / "poi"
-        self.inp_entities: Path = inp / "entities"
-
-        self.outp_region: Path = outp / "region"
-        self.outp_poi: Path = outp / "poi"
-        self.outp_entities: Path = outp / "entities"
-
-        self.backup_region: Path | None = None
-        self.backup_poi: Path | None = None
-        self.backup_entities: Path | None = None
-
-        if backup is not None:
-            self.backup_region = backup / "region"
-            self.backup_poi = backup / "poi"
-            self.backup_entities = backup / "entities"
-
-            self.backup_region.mkdir(exist_ok=True)
-            self.backup_poi.mkdir(exist_ok=True)
-            self.backup_entities.mkdir(exist_ok=True)
-
-        self.inp_region.mkdir(exist_ok=True)
-        self.inp_poi.mkdir(exist_ok=True)
-        self.inp_entities.mkdir(exist_ok=True)
-
-        self.outp_region.mkdir(exist_ok=True)
-        self.outp_poi.mkdir(exist_ok=True)
-        self.outp_entities.mkdir(exist_ok=True)
 
 
 def run():
@@ -141,23 +91,4 @@ def run():
         with Pool(parallel) as p:
             res = p.map(func=foo, iterable=(a for a in work))
             pass
-
-
-def process_region(criteria: Callable[[Chunk], bool], region_path: Path, paths: Paths):
-    region = RegionFile.from_file(region_path)
-    region.trim(criteria)
-    if region.dirty:
-        if paths.backup_region is not None:
-            shutil.copy2(region_path, paths.backup_region / region_path.name)
-        region.save_to_file(paths.outp_region / region_path.name)
-    else:
-        print(f"Region unchanged: {region_path}")
-        if region_path != paths.outp_region / region_path.name:
-            shutil.copy2(region_path, paths.outp_region / region_path.name)
-
-
-def process_batch(criteria: str, paths: Paths, regions: Iterable[Path]):
-    l = len(regions)
-    for i, r in enumerate(regions, start=1):
-        print(f"Processing region {r} ({i}/{l})")
-        process_region(CRITERIA_MAPPING[criteria], r, paths)
+        pass

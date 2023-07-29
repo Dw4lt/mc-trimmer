@@ -1,10 +1,50 @@
-from abc import abstractmethod
+from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from enum import IntEnum
+from pathlib import Path
 import struct
 from typing import Callable, Generic, Self, Type, TypeVar
 
 
-PATH = "./data"
+class Paths:
+    def __init__(self, inp: Path, outp: Path, backup: Path | None = None) -> None:
+        if backup == inp:
+            raise Exception("Input and backup directories cannot be the same.")
+        if backup == outp:
+            raise Exception("Output and backup directories cannot be the same.")
+        if not inp.exists():
+            raise Exception("Input directory must exist.")
+
+        self.inp_region: Path = inp / "region"
+        self.inp_poi: Path = inp / "poi"
+        self.inp_entities: Path = inp / "entities"
+
+        self.outp_region: Path = outp / "region"
+        self.outp_poi: Path = outp / "poi"
+        self.outp_entities: Path = outp / "entities"
+
+        self.backup_region: Path | None = None
+        self.backup_poi: Path | None = None
+        self.backup_entities: Path | None = None
+
+        if backup is not None:
+            self.backup_region = backup / "region"
+            self.backup_poi = backup / "poi"
+            self.backup_entities = backup / "entities"
+
+            self.backup_region.mkdir(exist_ok=True)
+            self.backup_poi.mkdir(exist_ok=True)
+            self.backup_entities.mkdir(exist_ok=True)
+
+        self.inp_region.mkdir(exist_ok=True)
+        self.inp_poi.mkdir(exist_ok=True)
+        self.inp_entities.mkdir(exist_ok=True)
+
+        self.outp_region.mkdir(exist_ok=True)
+        self.outp_poi.mkdir(exist_ok=True)
+        self.outp_entities.mkdir(exist_ok=True)
+
+
 T = TypeVar("T")
 S = TypeVar("S", bound="Serializable")
 
@@ -125,6 +165,59 @@ class Timestamp(Serializable):
 
 LocationData = SerializableLocation * 1024
 TimestampData = Timestamp * 1024
+
+
+@dataclass
+class ChunkDataBase(Generic[S]):
+    data: S  # Data must be Serializable.
+    location: SerializableLocation
+    timestamp: Timestamp
+    index: int
+
+    def __lt__(self, other: Self) -> bool:
+        return self.index < other.index
+
+
+class RegionLike(ABC):
+    @staticmethod
+    def to_bytes(data: list[ChunkDataBase[S]]) -> bytes:
+        offset: int = 2
+        locations: bytes = b""
+        timestamps: bytes = b""
+        chunks: bytes = b""
+
+        # Adjust offsets and sizes, store chunk data
+        for cd in sorted(data, key=lambda combo: combo.location.offset):
+            data_bytes: bytes = bytes(cd.data)
+            length = len(data_bytes)
+
+            assert length % 4096 == 0
+            if length == 0 and cd.location.size != 0:
+                pass
+            cd.location.size = length // 4096
+            if cd.location.size == 0:
+                cd.location.offset = 0
+                cd.timestamp.timestamp = 0
+            else:
+                chunks += data_bytes
+                cd.location.offset = offset
+                offset += cd.location.size
+
+        # Convert tables to binary
+        previous = 2
+        for cd in sorted(data, key=lambda combo: combo.index):
+            if cd.index - previous > 1:
+                bytes_to_add = b"\x00\x00\x00\x00" * (cd.index - previous - 1)
+                locations += bytes_to_add
+                timestamps += bytes_to_add
+            locations += bytes(cd.location)
+            timestamps += bytes(cd.timestamp)
+            previous = cd.index
+        bytes_to_add = b"\x00\x00\x00\x00" * (1024 - previous - 1)
+        locations += bytes_to_add
+        timestamps += bytes_to_add
+
+        return locations + timestamps + chunks
 
 
 def fast_get_property(decompressed_data: bytes, name: bytes, strategy: Strategy[T]) -> T:
