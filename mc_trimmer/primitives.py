@@ -1,8 +1,9 @@
+import os
+import struct
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import IntEnum
 from pathlib import Path
-import struct
 from typing import Callable, Generic, Self, Type, TypeVar
 
 
@@ -32,17 +33,23 @@ class Paths:
             self.backup_poi = backup / "poi"
             self.backup_entities = backup / "entities"
 
-            self.backup_region.mkdir(exist_ok=True)
-            self.backup_poi.mkdir(exist_ok=True)
-            self.backup_entities.mkdir(exist_ok=True)
+            Paths.__assert_writable(self.backup_region)
+            Paths.__assert_writable(self.backup_poi)
+            Paths.__assert_writable(self.backup_entities)
 
         self.inp_region.mkdir(exist_ok=True)
         self.inp_poi.mkdir(exist_ok=True)
         self.inp_entities.mkdir(exist_ok=True)
 
-        self.outp_region.mkdir(exist_ok=True)
-        self.outp_poi.mkdir(exist_ok=True)
-        self.outp_entities.mkdir(exist_ok=True)
+        Paths.__assert_writable(self.outp_region)
+        Paths.__assert_writable(self.outp_poi)
+        Paths.__assert_writable(self.outp_entities)
+
+    @staticmethod
+    def __assert_writable(path: Path) -> None:
+        path.mkdir(exist_ok=True)
+        if not os.access(path, os.W_OK):
+            raise Exception(f'Path "{path}" is not writable. Aborting.')
 
 
 T = TypeVar("T")
