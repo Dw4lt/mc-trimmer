@@ -188,16 +188,25 @@ class ChunkDataBase(Generic[S]):
         return issubclass(self.__class__, other.__class__) and self.index == other.index
 
 
+class ChunkDataDict(dict[int, ChunkDataBase[S]]):
+    def append(self, element: ChunkDataBase[S]):
+        self.setdefault(element.index, element)
+
+
 class RegionLike(ABC):
+    @abstractmethod
+    def reset_chunk(self, index: int) -> None:
+        ...
+
     @staticmethod
-    def to_bytes(data: list[ChunkDataBase[S]]) -> bytes:
+    def to_bytes(data: ChunkDataDict) -> bytes:
         offset: int = 2
         locations: bytes = b""
         timestamps: bytes = b""
         chunks: bytes = b""
 
         # Adjust offsets and sizes, store chunk data
-        for cd in sorted(data, key=lambda combo: combo.location.offset):
+        for cd in sorted(data.values(), key=lambda combo: combo.location.offset):
             data_bytes: bytes = bytes(cd.data)
             length = len(data_bytes)
 
@@ -215,7 +224,7 @@ class RegionLike(ABC):
 
         # Convert tables to binary
         previous = 2
-        for cd in sorted(data, key=lambda combo: combo.index):
+        for cd in sorted(data.values(), key=lambda combo: combo.index):
             if cd.index - previous > 1:
                 bytes_to_add = b"\x00\x00\x00\x00" * (cd.index - previous - 1)
                 locations += bytes_to_add
