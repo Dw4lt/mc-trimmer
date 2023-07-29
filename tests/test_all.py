@@ -51,3 +51,27 @@ def test_RegionFile(file: str, filter: Callable | None):
     t = a == b
     if not t:
         assert False
+
+
+@pytest.mark.parametrize(
+    "file,filter",
+    [
+        ("entities/simple.mca", None),
+    ],
+)
+def test_EntityFile(file: str, filter: Callable | None):
+    input_file = input_dir / file
+    output_file = output_dir / file
+
+    region = EntitiesFile.from_file(input_file)
+
+    b = bytes(region)
+
+    with open(output_file, "+rb") as f:
+        a = f.read()
+
+    t = a == b
+
+    region.reset_chunk(0)
+    if not t:
+        assert False
