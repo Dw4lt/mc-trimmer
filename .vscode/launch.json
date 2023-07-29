@@ -10,11 +10,11 @@
             "justMyCode": false,
             "args": [
                 "-i",
-                "L:\\work\\mc\\mc-trimmer\\tests\\test_in",
+                "./tests/test_in",
                 "-o",
-                "L:\\work\\mc\\mc-trimmer\\tests\\test_out",
+                "./tests/test_out",
                 "-b",
-                "L:\\work\\mc\\mc-trimmer\\tests\\test_backup",
+                "./tests/test_backup",
                 "-c",
                 "inhabited_time<1m",
             ]
