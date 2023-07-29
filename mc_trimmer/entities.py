@@ -46,18 +46,18 @@ class Entity(Serializable):
 
 class EntitiesFile(RegionLike):
     def __init__(self, location_data: bytes, timestamp_data: bytes, data: bytes) -> None:
-        self.entity_data: list[ChunkDataBase[Entity]] = []
+        self.entity_data: ChunkDataDict[Entity] = ChunkDataDict[Entity]()
+
         locations: ArrayOfSerializable[SerializableLocation] = LocationData().from_bytes(location_data)
         timestamps: ArrayOfSerializable[Timestamp] = TimestampData().from_bytes(timestamp_data)
 
         for i, (loc, ts) in enumerate(zip(locations, timestamps, strict=False)):
-            chunk: Entity
             if loc.size > 0:
                 assert loc.offset >= 2
                 start = loc.offset * Sizes.CHUNK_SIZE_MULTIPLIER
                 entity_data = data[start : start + loc.size * Sizes.CHUNK_SIZE_MULTIPLIER]
 
-                d = ChunkDataBase[Entity](data=Entity.from_bytes(entity_data), location=loc, timestamp=ts, index=i)
+                d = ChunkDataBase(data=Entity.from_bytes(entity_data), location=loc, timestamp=ts, index=i)
                 self.entity_data.append(d)
 
     def __bytes__(self) -> bytes:
@@ -73,6 +73,5 @@ class EntitiesFile(RegionLike):
             ]
             return EntitiesFile(chunk_location_data, timestamps_data, data)
 
-    def reset_chunk(self, index: int):
-        self.entity_data.remove(ChunkDataBase[Entity](Entity(), SerializableLocation(), Timestamp(), index=index))
-        pass
+    def reset_chunk(self, index: int) -> None:
+        self.entity_data.pop(index)

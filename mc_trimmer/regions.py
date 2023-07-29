@@ -8,6 +8,7 @@ from mc_trimmer.primitives import (
     INT_STRATEGY,
     LONG_STRATEGY,
     ChunkDataBase,
+    ChunkDataDict,
     LocationData,
     RegionLike,
     Serializable,
@@ -15,6 +16,8 @@ from mc_trimmer.primitives import (
     TimestampData,
     fast_get_property,
 )
+
+# LOG = logging.getLogger(__name__)
 
 
 class Chunk(Serializable):
@@ -86,7 +89,7 @@ def get_regions(path: str | Path) -> Iterable[Path]:
 
 class RegionFile(RegionLike):
     def __init__(self, chunk_location_data: bytes, timestamps_data: bytes, data: bytes) -> None:
-        self.chunk_data: list[ChunkDataBase[Chunk]] = []
+        self.chunk_data: ChunkDataDict[Chunk] = ChunkDataDict[Chunk]()
         self.dirty: bool = False
 
         locations = LocationData().from_bytes(chunk_location_data)
@@ -104,14 +107,14 @@ class RegionFile(RegionLike):
                 b = bytes(chunk)
                 a = bytes(data_slice)
                 assert a == b
-                self.chunk_data.append(ChunkDataBase[Chunk](data=chunk, location=loc, timestamp=ts, index=i))
+                self.chunk_data.append(ChunkDataBase(data=chunk, location=loc, timestamp=ts, index=i))
         return
 
     def __bytes__(self) -> bytes:
         return RegionFile.to_bytes(data=self.chunk_data)
 
     def trim(self, condition: Callable[[Chunk], bool]):
-        for cd in self.chunk_data:
+        for i, cd in self.chunk_data.items():
             self.dirty |= cd.data.conditional_reset(condition)
 
     @classmethod
@@ -129,8 +132,11 @@ class RegionFile(RegionLike):
         if len(data) > Sizes.LOCATION_DATA_SIZE + Sizes.TIMESTAMPS_DATA_SIZE:
             with open(region, "wb") as f:
                 f.write(data)
-                LOG.info(f"Written {region}")
+                print(f"Written {region}")
         else:
-            LOG.info(f"Deleting {region}")
+            print(f"Deleting {region}")
             if region.exists() and region.is_file():
                 os.remove(region)
+
+    def reset_chunk(self, index: int) -> None:
+        self.chunk_data.pop(index)
