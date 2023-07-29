@@ -83,10 +83,6 @@ class Chunk(Serializable):
         return len(self._compressed_data)
 
 
-TimestampData = Timestamp * 1024
-ChunkLocationData = ChunkLocation * 1024
-
-
 def get_regions(path: str | Path) -> Iterable[Path]:
     p: Path = Path(path)
     if p.exists() and p.is_dir():
@@ -126,14 +122,10 @@ class RegionFile:
                 b = bytes(chunk)
                 a = bytes(data_slice)
                 assert a == b
-            else:
-                chunk = Chunk()
-            self.chunk_data.append(ChunkData(chunk=chunk, location=loc, timestamp=ts, index=i))
+                self.chunk_data.append(ChunkData(chunk=chunk, location=loc, timestamp=ts, index=i))
 
-        t1, t2 = bytes(data), bytes(self)
-        l1, l2 = len(t1), len(t2)
-        w1, w2 = t1[:4096], t2[:4096]
-        assert len(self.chunk_data) == 1024
+        # t1, t2 = bytes(data), bytes(self)
+        # w1, w2 = t1[:4096], t2[:4096]
         # assert w1 == w2  # Only true if no chunks were modified since inception
 
         return
@@ -176,9 +168,18 @@ class RegionFile:
                 offset += cd.location.size
 
         # Convert tables to binary
+        previous = 2
         for cd in sorted(self.chunk_data, key=lambda combo: combo.index):
+            if cd.index - previous > 1:
+                bytes_to_add = b"\x00\x00\x00\x00" * (cd.index - previous - 1)
+                locations += bytes_to_add
+                timestamps += bytes_to_add
             locations += bytes(cd.location)
             timestamps += bytes(cd.timestamp)
+            previous = cd.index
+        bytes_to_add = b"\x00\x00\x00\x00" * (1024 - previous - 1)
+        locations += bytes_to_add
+        timestamps += bytes_to_add
 
         return locations + timestamps + chunks
 
