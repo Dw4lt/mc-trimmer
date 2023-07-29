@@ -125,7 +125,7 @@ class ArrayOfSerializable(list[S]):
 
 
 class SerializableLocation(Serializable):
-    def __init__(self, offset: int, size: int) -> None:
+    def __init__(self, offset: int = 0, size: int = 0) -> None:
         self.offset = offset
         self.size = size
 
@@ -150,7 +150,7 @@ class SerializableLocation(Serializable):
 
 
 class Timestamp(Serializable):
-    def __init__(self, timestamp: int) -> None:
+    def __init__(self, timestamp: int = 0) -> None:
         self.timestamp = timestamp
 
     def __repr__(self) -> str:
@@ -183,6 +183,9 @@ class ChunkDataBase(Generic[S]):
 
     def __lt__(self, other: Self) -> bool:
         return self.index < other.index
+
+    def __eq__(self, other: "ChunkDataBase[S]") -> bool:
+        return issubclass(self.__class__, other.__class__) and self.index == other.index
 
 
 class RegionLike(ABC):
