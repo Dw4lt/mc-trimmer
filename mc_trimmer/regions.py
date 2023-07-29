@@ -23,7 +23,7 @@ class Chunk(Serializable):
         length: int = 0,
         compression: int = 2,
         data: bytes = b"",
-        compressed_data=b"",
+        compressed_data: bytes = b"",
     ) -> None:
         self._compression: int = compression
         self._compressed_data: bytes = compressed_data
@@ -88,7 +88,6 @@ class RegionFile(RegionLike):
     def __init__(self, chunk_location_data: bytes, timestamps_data: bytes, data: bytes) -> None:
         self.chunk_data: list[ChunkDataBase[Chunk]] = []
         self.dirty: bool = False
-        self.__data: bytes = data
 
         locations = LocationData().from_bytes(chunk_location_data)
         timestamps = TimestampData().from_bytes(timestamps_data)
@@ -98,7 +97,7 @@ class RegionFile(RegionLike):
             if loc.size > 0:
                 assert loc.offset >= 2
                 start = loc.offset * Sizes.CHUNK_SIZE_MULTIPLIER
-                data_slice = self.__data[start : start + loc.size * Sizes.CHUNK_SIZE_MULTIPLIER]
+                data_slice = data[start : start + loc.size * Sizes.CHUNK_SIZE_MULTIPLIER]
                 chunk = Chunk.from_bytes(data_slice)
 
                 # Tests:
