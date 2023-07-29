@@ -11,7 +11,7 @@ from concurrent.futures import ProcessPoolExecutor
 from functools import partial
 import asyncio
 
-from . import Chunk, Region, get_regions
+from . import Chunk, RegionFile, get_regions
 from .__version__ import __version__
 
 
@@ -110,7 +110,7 @@ def run():
 
 
 def process_region(criteria: Callable[[Chunk], bool], region_path: Path, backup: Path | None, outp: Path):
-    region = Region.from_file(region_path)
+    region = RegionFile.from_file(region_path)
     region.trim(criteria)
     if region.dirty:
         if backup:

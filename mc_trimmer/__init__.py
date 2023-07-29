@@ -1,1 +1,1 @@
-from .main import Chunk, Region, ChunkLocation, Timestamp, get_regions
+from .main import Chunk, RegionFile, SerializableLocation, Timestamp, get_regions
