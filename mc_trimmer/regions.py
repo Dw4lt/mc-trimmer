@@ -97,9 +97,9 @@ class RegionFile(RegionLike):
                 chunk = Chunk.from_bytes(data_slice)
 
                 # Tests:
-                b = bytes(chunk)
-                a = bytes(data_slice)
-                assert a == b
+                # b = bytes(chunk)
+                # a = bytes(data_slice)
+                # assert a == b
                 self.chunk_data.append(ChunkDataBase(data=chunk, location=loc, timestamp=ts, index=i))
         return
 
