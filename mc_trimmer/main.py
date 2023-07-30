@@ -33,7 +33,7 @@ class Region:
         pass
 
     def iterate(self) -> Iterable[tuple[int, Chunk, Entity]]:
-        full_outer_join = set(self.region.chunk_data.keys()) & set(self.entities.entity_data.keys())
+        full_outer_join = set(self.region.chunk_data.keys()) | set(self.entities.entity_data.keys())
         for i in full_outer_join:
             c = self.region.chunk_data.get(i, None)
             c = c.data if c is not None else Chunk()
