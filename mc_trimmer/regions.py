@@ -127,16 +127,6 @@ class RegionFile(RegionLike):
             ]
             return RegionFile(chunk_location_data, timestamps_data, data)
 
-    def save_to_file(self, region: Path) -> None:
-        data = bytes(self)
-        if len(data) > Sizes.LOCATION_DATA_SIZE + Sizes.TIMESTAMPS_DATA_SIZE:
-            with open(region, "wb") as f:
-                f.write(data)
-                print(f"Written {region}")
-        else:
-            print(f"Deleting {region}")
-            if region.exists() and region.is_file():
-                os.remove(region)
-
     def reset_chunk(self, index: int) -> None:
-        self.chunk_data.pop(index)
+        popped = self.chunk_data.pop(index, None)
+        self.dirty |= popped is not None

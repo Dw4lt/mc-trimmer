@@ -29,13 +29,6 @@ class Entity(Serializable):
                 # print(f"Warning: post-chunk data was padded with non-zero values: {bytes(post_chunk_data[:100])}")
         return cls(length=length, compression=compression, data=nbt_data, compressed_data=data)
 
-    def conditional_reset(self, condition: Callable[[Self], bool]) -> bool:
-        if self._compressed_data != b"":
-            if condition(self):
-                self._compressed_data = b""
-                return True
-        return False
-
     def __bytes__(self) -> bytes:
         return bytes(self._compressed_data)
 
@@ -74,4 +67,4 @@ class EntitiesFile(RegionLike):
             return EntitiesFile(chunk_location_data, timestamps_data, data)
 
     def reset_chunk(self, index: int) -> None:
-        self.entity_data.pop(index)
+        self.entity_data.pop(index, None)
