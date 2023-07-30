@@ -198,6 +198,21 @@ class RegionLike(ABC):
     def reset_chunk(self, index: int) -> None:
         ...
 
+    @abstractmethod
+    def __bytes__(self) -> bytes:
+        ...
+
+    def save_to_file(self, file: Path) -> None:
+        data = bytes(self)
+        if len(data) > Sizes.LOCATION_DATA_SIZE + Sizes.TIMESTAMPS_DATA_SIZE:
+            with open(file, "wb") as f:
+                f.write(data)
+                print(f"Written {file}")
+        else:
+            print(f"Deleting {file}")
+            if file.exists() and file.is_file():
+                os.remove(file)
+
     @staticmethod
     def to_bytes(data: ChunkDataDict) -> bytes:
         offset: int = 2
@@ -223,7 +238,7 @@ class RegionLike(ABC):
                 offset += cd.location.size
 
         # Convert tables to binary
-        previous = 2
+        previous = -1
         for cd in sorted(data.values(), key=lambda combo: combo.index):
             if cd.index - previous > 1:
                 bytes_to_add = b"\x00\x00\x00\x00" * (cd.index - previous - 1)
