@@ -2,7 +2,7 @@ import os
 import struct
 import zlib
 from pathlib import Path
-from typing import Callable, Iterable, Self
+from typing import Callable, Self
 
 from mc_trimmer.primitives import (
     INT_STRATEGY,
@@ -78,13 +78,6 @@ class Chunk(Serializable):
     @property
     def SIZE(self) -> int:
         return len(self._compressed_data)
-
-
-def get_regions(path: str | Path) -> Iterable[Path]:
-    p: Path = Path(path)
-    if p.exists() and p.is_dir():
-        return (f for f in p.glob("*.mca") if f.is_file())
-    raise Exception(f"Invalid input <{p}>")
 
 
 class RegionFile(RegionLike):
