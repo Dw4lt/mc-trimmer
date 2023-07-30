@@ -1,10 +1,12 @@
 import os
+import tempfile
 from pathlib import Path
 from typing import Callable
 
 import pytest
 
 from mc_trimmer import *
+from mc_trimmer.entities import Entity
 
 current_dir = Path(os.path.dirname(__file__))
 input_dir = current_dir / "in"
@@ -33,7 +35,7 @@ def pytest_internalerror(excinfo):
         ("region/complex_checkerboard.mca", lambda chunk: (chunk.xPos + chunk.zPos) % 2),
     ],
 )
-def test_RegionFile(file: str, filter: Callable | None):
+def test_RegionFile(file: str, filter: Callable[[Chunk], bool] | None):
     input_file = input_dir / file
     output_file = output_dir / file
 
@@ -57,21 +59,59 @@ def test_RegionFile(file: str, filter: Callable | None):
     "file,filter",
     [
         ("entities/simple.mca", None),
+        ("entities/remove_one.mca", lambda entity: entity.contains_id("minecraft:chicken")),
     ],
 )
-def test_EntityFile(file: str, filter: Callable | None):
+def test_EntityFile(file: str, filter: Callable[[Entity], bool] | None):
     input_file = input_dir / file
     output_file = output_dir / file
 
-    region = EntitiesFile.from_file(input_file)
+    entities = EntitiesFile.from_file(input_file)
+    if filter is not None:
+        entities.trim(filter)
 
-    b = bytes(region)
+    b = bytes(entities)
 
     with open(output_file, "+rb") as f:
         a = f.read()
 
     t = a == b
 
-    region.reset_chunk(0)
     if not t:
         assert False
+
+
+@pytest.mark.parametrize(
+    "file,filter",
+    [
+        ("simple.mca", None),
+    ],
+)
+def test_all(file: str, filter: Callable[[Chunk, Entity], bool]):
+    expected_paths = Paths(
+        inp=Path(input_dir),
+        outp=Path(output_dir),
+    )
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        paths = Paths(
+            inp=Path(input_dir),
+            outp=Path(tmp_dir),
+        )
+        manager = RegionManager(paths)
+        region: Region = manager.open_file(file)
+        if filter is not None:
+            manager.trim(region, filter)
+        manager.save_to_file(region, file)
+
+        with open(expected_paths.outp_region / file, "rb") as correct, open(paths.outp_region / file, "rb") as got:
+            a = correct.read()
+            b = got.read()
+            t = a == b
+            assert t
+
+        with open(expected_paths.outp_entities / file, "rb") as correct, open(paths.outp_entities / file, "rb") as got:
+            a = correct.read()
+            b = got.read()
+            t = a == b
+            assert t

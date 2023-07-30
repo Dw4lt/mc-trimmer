@@ -2,12 +2,14 @@ from argparse import SUPPRESS, ArgumentParser
 from functools import partial
 from multiprocessing import cpu_count
 from pathlib import Path
+from typing import Iterable
 
 from multiprocess.pool import Pool
 
-from mc_trimmer.main import CRITERIA_MAPPING, process_batch
+from mc_trimmer.main import CRITERIA_MAPPING, RegionManager, process_batch
+from .primitives import RegionLike
 
-from . import Paths, get_regions
+from . import Paths
 from .__version__ import __version__
 
 
@@ -80,15 +82,22 @@ def run():
 
     paths = Paths(inp, outp, backup)
 
+    rm = RegionManager(paths=paths)
+    region_file_names: Iterable[str] = RegionLike.get_regions(paths.inp_region)
+
     if parallel is None:
-        process_batch(args.trimming_criteria, paths=paths, regions=list(get_regions(paths.inp_region)))
+        process_batch(
+            manager=rm,
+            criteria=args.trimming_criteria,
+            file_names=list(region_file_names),
+        )
     else:
-        work: list[list[Path]] = [[] for _ in range(parallel)]
-        for i, r in enumerate(get_regions(paths.inp_region)):
+        work: list[list[str]] = [[] for _ in range(parallel)]
+        for i, r in enumerate(region_file_names):
             work[i % parallel].append(r)
 
-        foo = partial(process_batch, args.trimming_criteria, paths)
+        foo = partial(process_batch, rm, args.trimming_criteria)
         with Pool(parallel) as p:
-            res = p.map(func=foo, iterable=[a for a in work])
+            res = p.map(func=foo, iterable=work)
             pass
         pass

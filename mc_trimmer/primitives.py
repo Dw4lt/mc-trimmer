@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import IntEnum
 from pathlib import Path
-from typing import Callable, Generic, Self, Type, TypeVar
+from typing import Callable, Generic, Iterable, Self, Type, TypeVar
 
 
 class Paths:
@@ -47,7 +47,7 @@ class Paths:
 
     @staticmethod
     def __assert_writable(path: Path) -> None:
-        path.mkdir(exist_ok=True)
+        path.mkdir(exist_ok=True, parents=True)
         if not os.access(path, os.W_OK):
             raise Exception(f'Path "{path}" is not writable. Aborting.')
 
@@ -212,6 +212,13 @@ class RegionLike(ABC):
             print(f"Deleting {file}")
             if file.exists() and file.is_file():
                 os.remove(file)
+
+    @staticmethod
+    def get_regions(path: str | Path) -> Iterable[str]:
+        p: Path = Path(path)
+        if p.exists() and p.is_dir():
+            return (f.name for f in p.glob("*.mca") if f.is_file())
+        raise Exception(f"Invalid input <{p}>")
 
     @staticmethod
     def to_bytes(data: ChunkDataDict) -> bytes:
