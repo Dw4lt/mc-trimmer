@@ -223,9 +223,9 @@ class RegionLike(ABC):
     @staticmethod
     def to_bytes(data: ChunkDataDict) -> bytes:
         offset: int = 2
-        locations: bytes = b""
-        timestamps: bytes = b""
-        chunks: bytes = b""
+        locations: bytearray = bytearray()
+        timestamps: bytearray = bytearray()
+        chunks: bytearray = bytearray()
 
         # Adjust offsets and sizes, store chunk data
         for cd in sorted(data.values(), key=lambda combo: combo.location.offset):
@@ -248,17 +248,17 @@ class RegionLike(ABC):
         previous = -1
         for cd in sorted(data.values(), key=lambda combo: combo.index):
             if cd.index - previous > 1:
-                bytes_to_add = b"\x00\x00\x00\x00" * (cd.index - previous - 1)
+                bytes_to_add = bytearray(b"\x00\x00\x00\x00") * (cd.index - previous - 1)
                 locations += bytes_to_add
                 timestamps += bytes_to_add
             locations += bytes(cd.location)
             timestamps += bytes(cd.timestamp)
             previous = cd.index
-        bytes_to_add = b"\x00\x00\x00\x00" * (1024 - previous - 1)
+        bytes_to_add = bytearray(b"\x00\x00\x00\x00") * (1024 - previous - 1)
         locations += bytes_to_add
         timestamps += bytes_to_add
 
-        return locations + timestamps + chunks
+        return bytes(locations + timestamps + chunks)
 
 
 def fast_get_property(decompressed_data: bytes, name: bytes, strategy: Strategy[T]) -> T:
