@@ -1,6 +1,8 @@
 import shutil
 from dataclasses import dataclass
 from functools import partial
+import sys
+import traceback
 from typing import Callable, Iterable
 
 from multiprocess.pool import Pool
@@ -109,11 +111,22 @@ def process_region(manager: RegionManager, criteria: Callable[[Chunk, Entity], b
     manager.save_to_file(region=region, file_name=file_name)
 
 
-def process_batch(manager: RegionManager, criteria: str, file_names: list[str]):
+def process_batch(manager: RegionManager, criteria: str, file_names: list[str]) -> list[tuple[Exception, str]]:
     l = len(file_names)
+    exceptions: list[tuple[Exception, str]] = []
     for i, r in enumerate(file_names, start=1):
         print(f"Processing region {r} ({i}/{l})")
-        process_region(manager, CRITERIA_MAPPING[criteria], r)
+        try:
+            process_region(manager, CRITERIA_MAPPING[criteria], r)
+        except AssertionError as e:
+            e.add_note(f"[E]: AssertionError while processing {r}")
+            tb = str(traceback.extract_tb(sys.exc_info()[2]))
+            exceptions.append((e, tb))
+        except Exception as e:
+            e.add_note(f"[E]: Exception while processing {r}")
+            tb = str(traceback.extract_tb(sys.exc_info()[2]))
+            exceptions.append((e, tb))
+    return exceptions
 
 
 def main(*, threads: int | None, paths: Paths, trimming_criteria: str) -> None:
@@ -121,11 +134,13 @@ def main(*, threads: int | None, paths: Paths, trimming_criteria: str) -> None:
     region_file_names: Iterable[str] = RegionLike.get_regions(paths.inp_region)
 
     if threads is None:
-        process_batch(
+        res = process_batch(
             manager=rm,
             criteria=trimming_criteria,
             file_names=list(region_file_names),
         )
+        for e, traceback in res:
+            print("\n".join(e.__notes__), e, traceback)
     else:
         work: list[list[str]] = [[] for _ in range(threads)]
         for i, r in enumerate(region_file_names):
@@ -135,4 +150,6 @@ def main(*, threads: int | None, paths: Paths, trimming_criteria: str) -> None:
         with Pool(threads) as p:
             res = p.map(func=foo, iterable=work)
             pass
-        pass
+        for combo in res:
+            for e, traceback in combo:
+                print("\n".join(e.__notes__), e, traceback)
