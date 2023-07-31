@@ -1,9 +1,12 @@
-from dataclasses import dataclass
-from pathlib import Path
 import shutil
+from dataclasses import dataclass
+from functools import partial
 from typing import Callable, Iterable
+
+from multiprocess.pool import Pool
+
 from mc_trimmer.entities import EntitiesFile, Entity
-from mc_trimmer.primitives import Paths
+from mc_trimmer.primitives import Paths, RegionLike
 from mc_trimmer.regions import Chunk, RegionFile
 
 
@@ -111,3 +114,25 @@ def process_batch(manager: RegionManager, criteria: str, file_names: list[str]):
     for i, r in enumerate(file_names, start=1):
         print(f"Processing region {r} ({i}/{l})")
         process_region(manager, CRITERIA_MAPPING[criteria], r)
+
+
+def main(*, threads: int | None, paths: Paths, trimming_criteria: str) -> None:
+    rm = RegionManager(paths=paths)
+    region_file_names: Iterable[str] = RegionLike.get_regions(paths.inp_region)
+
+    if threads is None:
+        process_batch(
+            manager=rm,
+            criteria=trimming_criteria,
+            file_names=list(region_file_names),
+        )
+    else:
+        work: list[list[str]] = [[] for _ in range(threads)]
+        for i, r in enumerate(region_file_names):
+            work[i % threads].append(r)
+
+        foo = partial(process_batch, rm, trimming_criteria)
+        with Pool(threads) as p:
+            res = p.map(func=foo, iterable=work)
+            pass
+        pass
