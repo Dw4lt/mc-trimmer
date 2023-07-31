@@ -5,3 +5,5 @@ __pypackages__
 dist.pdm-python
 .pdm-python
 *.egg-info
+tests/debug/
+build

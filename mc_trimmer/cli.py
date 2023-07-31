@@ -11,7 +11,7 @@ from .__version__ import __version__
 def run():
     parser = ArgumentParser(
         prog="mctrimmer",
-        description=f"Query NetBox via GraphQL and deploy the documented services. v{__version__}",
+        description=f"Trim a minecraft dimension based on per-chunk criteria. v{__version__}",
         add_help=False,
     )
 

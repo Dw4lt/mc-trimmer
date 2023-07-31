@@ -1,26 +1,51 @@
-# Sample CLI project in Python using PDM
+# MC-Trimmer
+Allows for fast, UI-less trimming of minecraft worlds.
 
-Because debugging pyproject.toml is not fun and python imports are a mess.
+## Usage
+```sh
+mctrimmer [-h] [-b [BACKUP_DIR]] -i INPUT_DIR [-o [OUTPUT_DIR]] [-p [THREADS]] -c {inhabited_time<15s, ...}
 
-This project was made to be as broad as possible in its use. If you don't need something, remove it.
+Trim a minecraft dimension based on per-chunk criteria. v0.1.0
 
-## Capabilities
-- Install
-    - dependencies through pdm (`pdm install`)
-        - into the local `__pypackages__` folder
-            - to run your project as a python module
-                - locally (`python -m mc_trimmer`)
-                - in a docker container (see [Dockerfile](./Dockerfile))
-            - to be accessed by your IDE for intellisense (see [.vscode/settings.json](./.vscode/settings.json))
-            - to be accessed by your debug launch configuration (see [.vscode/launch.json](./.vscode/launch.json))
-    - project through pip (`pip install .`)
-        - to be used as a global CLI command (`run-my-project`)
-- Build
-    - through pdm (`pdm build`)
-        - into the local `dist` folder
-            - to be published on pypi
-                - through twine (`twine upload dist/*`)
+options:
+  -h, --help            Show this help message and exit.
+  -b/--backup [BACKUP_DIR]
+                        Backup regions affected by trimming to this directory. Defaults to './backup'
+  -i/--input-region INPUT_DIR
+                        Directory to source the dimension files from. If no output directory is specified, in-place editing will be performed.
+  -o/--output-region [OUTPUT_DIR]
+                        Directory to store the dimension files to. If unspecified, in-place editing will be performed by taking the input directory instead.
+  -p/--parallel [THREADS]
+                        Parallelize the task. If no thread count is specified, the number of cpu cores -1 is taken instead.
+  -c/--criteria {inhabited_time<15s,inhabited_time<30s,inhabited_time<1m,inhabited_time<2m,inhabited_time<3m,inhabited_time<5m,inhabited_time<10m}
+                        Pre-defined criteria by which to determmine if a chunk should be trimmed or not.
+```
 
-## Links
-- [PDM Package Manager](https://pdm.fming.dev/)
-- [Awesome Pyproject.toml](https://github.com/carlosperate/awesome-pyproject)
+
+## Benchmark
+Conditions:
+```md
+OS:                         Windows10 64bit
+CPU:                        AMD 3700x
+SSD:                        Corsair MP510 2TB
+Total file size processed:  1.05 GB
+Total output size:          436 MB
+Total files:                120 region files, 120 entities files
+```
+
+Command being run:
+```bat
+Measure-Command {mctrimmer -i "./test_in" -o "%appdata%/.minecraft/saves/test" -b "./tests/test_backup" -c "inhabited_time<30s" -p}
+```
+
+Results:
+```bat
+TotalSeconds      : 3.3509565
+TotalSeconds      : 4.4760565
+TotalSeconds      : 3.3780054
+TotalSeconds      : 3.4098966
+TotalSeconds      : 4.0146584
+TotalSeconds      : 3.7998296
+TotalSeconds      : 3.8248743
+TotalSeconds      : 3.9705653
+```
