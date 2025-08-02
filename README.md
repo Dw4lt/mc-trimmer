@@ -2,23 +2,24 @@
 Allows for fast, UI-less trimming of minecraft worlds.
 
 ## Usage
+### Trim
 ```sh
-mctrimmer [-h] [-b [BACKUP_DIR]] -i INPUT_DIR [-o [OUTPUT_DIR]] [-p [THREADS]] -c {inhabited_time<15s, ...}
+mctrimmer trim [-h] -i INPUT_DIR [-p [THREADS]] -c {inhabited_time<15s, ...} [-b [BACKUP_DIR]] [-o [OUTPUT_DIR]]
 
-Trim a minecraft dimension based on per-chunk criteria. v0.1.0
+Delete/Export select regions
 
 options:
-  -h, --help            Show this help message and exit.
-  -b/--backup [BACKUP_DIR]
-                        Backup regions affected by trimming to this directory. Defaults to './backup'
-  -i/--input-region INPUT_DIR
+  -h, --help            show this help message and exit
+  -i INPUT_DIR, --input-region INPUT_DIR
                         Directory to source the dimension files from. If no output directory is specified, in-place editing will be performed.
-  -o/--output-region [OUTPUT_DIR]
-                        Directory to store the dimension files to. If unspecified, in-place editing will be performed by taking the input directory instead.
-  -p/--parallel [THREADS]
+  -p [THREADS], --parallel [THREADS]
                         Parallelize the task. If no thread count is specified, the number of cpu cores -1 is taken instead.
-  -c/--criteria {inhabited_time<15s,inhabited_time<30s,inhabited_time<1m,inhabited_time<2m,inhabited_time<3m,inhabited_time<5m,inhabited_time<10m}
-                        Pre-defined criteria by which to determmine if a chunk should be trimmed or not.
+  -c {inhabited_time<15s,inhabited_time<30s,inhabited_time<1m,inhabited_time<2m,inhabited_time<3m,inhabited_time<5m,inhabited_time<10m}, --criteria {inhabited_time<15s,inhabited_time<30s,inhabited_time<1m,inhabited_time<2m,inhabited_time<3m,inhabited_time<5m,inhabited_time<10m}
+                        Pre-defined criteria by which to determine if a chunk should be trimmed or not.
+  -b [BACKUP_DIR], --backup [BACKUP_DIR]
+                        Backup regions affected by trimming to this directory. Defaults to './backup'
+  -o [OUTPUT_DIR], --output-region [OUTPUT_DIR]
+                        Directory to store the dimension files to. If unspecified, in-place editing will be performed by taking the input directory instead.
 ```
 
 
@@ -35,7 +36,7 @@ Total files:                120 region files, 120 entities files
 
 Command being run:
 ```bat
-Measure-Command {mctrimmer -i "./test_in" -o "%appdata%/.minecraft/saves/test" -b "./tests/test_backup" -c "inhabited_time<30s" -p}
+Measure-Command {mctrimmer trim -i "./test_in" -o "%appdata%/.minecraft/saves/test" -b "./tests/test_backup" -c "inhabited_time<30s" -p}
 ```
 
 Results:
