@@ -7,6 +7,12 @@ from pathlib import Path
 from typing import Callable, Generic, Iterable, Self, Type, TypeVar
 
 
+class Compression(IntEnum):
+    ZLIB = 2
+    UNCOMPRESSED = 3
+    LZ4 = 4
+
+
 class Paths:
     def __init__(self, inp: Path, outp: Path | None = None, backup: Path | None = None) -> None:
         if backup == inp:
@@ -97,7 +103,7 @@ class Serializable(metaclass=Meta):
 
     @classmethod
     @abstractmethod
-    def from_bytes(cls, data: bytes) -> Self: ...
+    def from_bytes(cls, data: bytes) -> Self | None: ...
 
     @property
     def SIZE(self) -> int:
@@ -111,8 +117,13 @@ class ArrayOfSerializable[CLS: Serializable](list[CLS]):
 
     def from_bytes(self, data: bytes) -> "ArrayOfSerializable[CLS]":
         for i in range(self._len):
-            obj: S = self._cls.from_bytes(data[i * self._cls.STATIC_SIZE() : (i + 1) * self._cls.STATIC_SIZE()])  # type: ignore
-            self.append(obj)
+            start = i * self._cls.STATIC_SIZE()
+            end = (i + 1) * self._cls.STATIC_SIZE()
+            member_data = data[start:end]
+            assert len(member_data) == self._cls.STATIC_SIZE()
+            member: CLS | None = self._cls.from_bytes(member_data)
+            if member is not None:
+                self.append(member)
         return self
 
     def __bytes__(self) -> bytes:

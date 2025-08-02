@@ -7,11 +7,11 @@ class Entity(Serializable):
     def __init__(
         self,
         length: int = 0,
-        compression: int = 2,
+        compression: Compression = Compression.ZLIB,
         data: bytes = b"",
         compressed_data: bytes = b"",
     ) -> None:
-        self._compression: int = compression
+        self._compression: Compression = compression
         self._compressed_data: bytes = compressed_data
         self.decompressed_data: bytes = b""
 
@@ -30,7 +30,7 @@ class Entity(Serializable):
     def from_bytes(cls: type[Self], data: bytes) -> Self:
         length, compression = struct.unpack(">IB", data[: Sizes.CHUNK_HEADER_SIZE])
         nbt_data = data[Sizes.CHUNK_HEADER_SIZE :]  # Sizes.CHUNK_HEADER_SIZE + length - 1]
-        assert compression == 2
+        compression = Compression(compression)
         post_chunk_data = data[Sizes.CHUNK_HEADER_SIZE + length :]
         if len(post_chunk_data) > 0:
             if post_chunk_data[0] != 0:
@@ -56,8 +56,7 @@ class EntitiesFile(RegionLike):
             timestamps: ArrayOfSerializable[Timestamp] = TimestampData().from_bytes(timestamp_data)
 
             for i, (loc, ts) in enumerate(zip(locations, timestamps, strict=False)):
-                if loc.size > 0:
-                    assert loc.offset >= 2
+                if loc.size > 0 and loc.offset >= 2:
                     start = loc.offset * Sizes.CHUNK_SIZE_MULTIPLIER
                     entity_data = data[start : start + loc.size * Sizes.CHUNK_SIZE_MULTIPLIER]
 

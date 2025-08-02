@@ -1,4 +1,4 @@
-import os
+from enum import IntEnum
 import struct
 import zlib
 from pathlib import Path
@@ -9,6 +9,7 @@ from mc_trimmer.primitives import (
     LONG_STRATEGY,
     ChunkDataBase,
     ChunkDataDict,
+    Compression,
     LocationData,
     RegionLike,
     Serializable,
@@ -24,16 +25,20 @@ class Chunk(Serializable):
     def __init__(
         self,
         length: int = 0,
-        compression: int = 2,
+        compression: Compression = Compression.ZLIB,
         data: bytes = b"",
         compressed_data: bytes = b"",
     ) -> None:
-        self._compression: int = compression
+        self._compression: Compression = compression
         self._compressed_data: bytes = compressed_data
 
+        self.decompressed_data = b""
         if length > 0:
-            self.decompressed_data = zlib.decompress(data)[3:]  # 3 bytes removes root tag opening
-            pass
+            match self._compression:
+                case Compression.ZLIB:
+                    self.decompressed_data = zlib.decompress(data)[3:]  # 3 bytes removes root tag opening
+                case _:
+                    assert False
 
     @property
     def InhabitedTime(self) -> int:
@@ -54,10 +59,13 @@ class Chunk(Serializable):
         return fast_get_property(self.decompressed_data, b"zPos", INT_STRATEGY)
 
     @classmethod
-    def from_bytes(cls: type[Self], data: bytes) -> Self:
+    def from_bytes(cls: type[Self], data: bytes) -> Self | None:
+        assert len(data) >= Sizes.CHUNK_HEADER_SIZE
         length, compression = struct.unpack(">IB", data[: Sizes.CHUNK_HEADER_SIZE])
+        if length == 0:
+            return None
+        compression = Compression(compression)
         nbt_data = data[Sizes.CHUNK_HEADER_SIZE :]  # Sizes.CHUNK_HEADER_SIZE + length - 1]
-        assert compression == 2
         post_chunk_data = data[Sizes.CHUNK_HEADER_SIZE + length :]
         if len(post_chunk_data) > 0:
             if post_chunk_data[0] != 0:
@@ -89,19 +97,18 @@ class RegionFile(RegionLike):
         timestamps = TimestampData().from_bytes(timestamps_data)
 
         for i, (loc, ts) in enumerate(zip(locations, timestamps, strict=False)):
-            chunk: Chunk
-            if loc.size > 0:
-                assert loc.offset >= 2
+            if loc.size > 0 and loc.offset >= 2:
                 start = loc.offset * Sizes.CHUNK_SIZE_MULTIPLIER
                 data_slice = data[start : start + loc.size * Sizes.CHUNK_SIZE_MULTIPLIER]
                 chunk = Chunk.from_bytes(data_slice)
+                if chunk is None:
+                    continue
 
                 # Tests:
                 # b = bytes(chunk)
                 # a = bytes(data_slice)
                 # assert a == b
                 self.chunk_data.append(ChunkDataBase(data=chunk, location=loc, timestamp=ts, index=i))
-        return
 
     def __bytes__(self) -> bytes:
         return RegionFile.to_bytes(data=self.chunk_data)
