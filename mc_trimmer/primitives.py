@@ -8,7 +8,7 @@ from typing import Callable, Generic, Iterable, Self, Type, TypeVar
 
 
 class Paths:
-    def __init__(self, inp: Path, outp: Path, backup: Path | None = None) -> None:
+    def __init__(self, inp: Path, outp: Path | None = None, backup: Path | None = None) -> None:
         if backup == inp:
             raise Exception("Input and backup directories cannot be the same.")
         if backup == outp:
@@ -20,9 +20,14 @@ class Paths:
         self.inp_poi: Path = inp / "poi"
         self.inp_entities: Path = inp / "entities"
 
-        self.outp_region: Path = outp / "region"
-        self.outp_poi: Path = outp / "poi"
-        self.outp_entities: Path = outp / "entities"
+        if outp is not None:
+            self.outp_region: Path = outp / "region"
+            self.outp_poi: Path = outp / "poi"
+            self.outp_entities: Path = outp / "entities"
+
+            Paths.__assert_writable(self.outp_region)
+            Paths.__assert_writable(self.outp_poi)
+            Paths.__assert_writable(self.outp_entities)
 
         self.backup_region: Path | None = None
         self.backup_poi: Path | None = None
@@ -40,10 +45,6 @@ class Paths:
         self.inp_region.mkdir(exist_ok=True)
         self.inp_poi.mkdir(exist_ok=True)
         self.inp_entities.mkdir(exist_ok=True)
-
-        Paths.__assert_writable(self.outp_region)
-        Paths.__assert_writable(self.outp_poi)
-        Paths.__assert_writable(self.outp_entities)
 
     @staticmethod
     def __assert_writable(path: Path) -> None:
