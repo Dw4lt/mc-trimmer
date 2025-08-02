@@ -29,11 +29,6 @@ class RegionManager:
 
         return Region(region=region, entities=entities, file_name=file_name)
 
-    def trim(self, region: Region, condition: Callable[[Chunk, Entity], bool]) -> None:
-        for i, c, e in region.iterate():
-            if condition(c, e):
-                region.reset_chunk(i)
-
     def save_to_file(self, region: Region, file_name: str) -> None:
         if region.region.dirty:
             if self._paths.backup_region is not None:
@@ -94,10 +89,16 @@ class Trim(Command[None]):
     def __init__(self, criteria: str) -> None:
         self._criteria: Callable[[Chunk, Entity], bool] = Trim.CRITERIA_MAPPING[criteria]
 
+    @staticmethod
+    def trim(region: Region, elimination_condition: Callable[[Chunk, Entity], bool]) -> None:
+        for i, c, e in region.iterate():
+            if elimination_condition(c, e):
+                region.reset_chunk(i)
+
     @override
     def run(self, manager: RegionManager, region_name: str) -> None:
         region: Region = manager.open_file(file_name=region_name)
-        manager.trim(region=region, condition=self._criteria)
+        self.trim(region=region, elimination_condition=self._criteria)
         manager.save_to_file(region=region, file_name=region_name)
 
 

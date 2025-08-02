@@ -100,7 +100,7 @@ def test_trim(file: str, filter: Callable[[Chunk, Entity], bool]):
         manager = RegionManager(paths)
         region: Region = manager.open_file(file)
         if filter is not None:
-            manager.trim(region, filter)
+            region.trim(filter)
         manager.save_to_file(region, file)
 
         with open(expected_paths.outp_region / file, "rb") as correct, open(paths.outp_region / file, "rb") as got:
