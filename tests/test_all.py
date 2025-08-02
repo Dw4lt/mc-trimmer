@@ -6,7 +6,6 @@ from typing import Callable
 import pytest
 
 from mc_trimmer import *
-from mc_trimmer.entities import Entity
 
 current_dir = Path(os.path.dirname(__file__))
 input_dir = current_dir / "in"

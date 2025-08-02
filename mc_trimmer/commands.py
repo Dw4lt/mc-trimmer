@@ -1,56 +1,18 @@
-from abc import ABC, abstractmethod
-import shutil
 from dataclasses import dataclass
-from functools import partial
-import sys
+import shutil
 import traceback
-from typing import Callable, Generic, Iterable, override
 
 from multiprocess.pool import Pool
+from functools import partial
+import rich
 
-from mc_trimmer.entities import EntitiesFile, Entity
-from mc_trimmer.primitives import T, Paths, RegionLike
-from mc_trimmer.regions import Chunk, RegionFile
+from .entities import EntitiesFile
+from .primitives import *
+from .entities import Entity
+from .regions import Chunk, Region, RegionFile, override
 
-
-@dataclass
-class Region:
-    file_name: str
-    region: RegionFile
-    entities: EntitiesFile
-
-    def trim(self, condition: Callable[[Chunk, Entity], bool]):
-        indexes_to_delete: list[int] = []
-        for i, cd in self.region.chunk_data.items():
-            condition_met: bool = False
-            if self.entities is not None:
-                ed = self.entities.entity_data.get(i, None)
-                if ed is None:
-                    condition_met = condition(cd.data, Entity())
-                else:
-                    condition_met = condition(cd.data, ed.data)
-            if condition_met:
-                indexes_to_delete.append(i)
-        for i in indexes_to_delete:
-            self.region.reset_chunk(i)
-            if self.entities is not None:
-                self.entities.reset_chunk(i)
-
-        pass
-
-    def iterate(self) -> Iterable[tuple[int, Chunk, Entity]]:
-        full_outer_join = set(self.region.chunk_data.keys()) | set(self.entities.entity_data.keys())
-        for i in full_outer_join:
-            c = self.region.chunk_data.get(i, None)
-            c = c.data if c is not None else Chunk()
-
-            e = self.entities.entity_data.get(i, None)
-            e = e.data if e is not None else Entity()
-            yield (i, c, e)
-
-    def reset_chunk(self, index: int):
-        self.region.reset_chunk(index)
-        self.entities.reset_chunk(index)
+from abc import ABC, abstractmethod
+from typing import Callable, Generic, Iterable
 
 
 class RegionManager:
@@ -78,7 +40,7 @@ class RegionManager:
                 shutil.copy2(self._paths.inp_region / file_name, self._paths.backup_region / file_name)
             region.region.save_to_file(self._paths.outp_region / file_name)
         else:
-            print(f"Region unchanged: {file_name}")
+            rich.print(f"Region unchanged: {file_name}")
             if self._paths.inp_region != self._paths.outp_region:
                 shutil.copy2(self._paths.inp_region / file_name, self._paths.outp_region / file_name)
 
@@ -87,7 +49,7 @@ class RegionManager:
                 shutil.copy2(self._paths.inp_entities / file_name, self._paths.backup_entities / file_name)
             region.entities.save_to_file(self._paths.outp_entities / file_name)
         else:
-            print(f"Entities unchanged: {file_name}")
+            rich.print(f"Entities unchanged: {file_name}")
             if (
                 self._paths.inp_entities != self._paths.outp_entities
                 and (self._paths.inp_entities / file_name).exists()

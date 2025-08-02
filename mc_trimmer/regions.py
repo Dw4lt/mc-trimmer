@@ -1,10 +1,11 @@
-from enum import IntEnum
+from dataclasses import dataclass
 import struct
 import zlib
 from pathlib import Path
-from typing import Callable, Self, override
+from typing import Callable, Iterable, Self, override
 
-from mc_trimmer.primitives import (
+from .entities import EntitiesFile, Entity
+from .primitives import (
     INT_STRATEGY,
     LONG_STRATEGY,
     ChunkDataBase,
@@ -130,3 +131,43 @@ class RegionFile(RegionLike):
     def reset_chunk(self, index: int) -> None:
         popped = self.chunk_data.pop(index, None)
         self.dirty |= popped is not None
+
+
+@dataclass
+class Region:
+    file_name: str
+    region: RegionFile
+    entities: EntitiesFile
+
+    def trim(self, condition: Callable[[Chunk, Entity], bool]):
+        indexes_to_delete: list[int] = []
+        for i, cd in self.region.chunk_data.items():
+            condition_met: bool = False
+            if self.entities is not None:
+                ed = self.entities.entity_data.get(i, None)
+                if ed is None:
+                    condition_met = condition(cd.data, Entity())
+                else:
+                    condition_met = condition(cd.data, ed.data)
+            if condition_met:
+                indexes_to_delete.append(i)
+        for i in indexes_to_delete:
+            self.region.reset_chunk(i)
+            if self.entities is not None:
+                self.entities.reset_chunk(i)
+
+        pass
+
+    def iterate(self) -> Iterable[tuple[int, Chunk, Entity]]:
+        full_outer_join = set(self.region.chunk_data.keys()) | set(self.entities.entity_data.keys())
+        for i in full_outer_join:
+            c = self.region.chunk_data.get(i, None)
+            c = c.data if c is not None else Chunk()
+
+            e = self.entities.entity_data.get(i, None)
+            e = e.data if e is not None else Entity()
+            yield (i, c, e)
+
+    def reset_chunk(self, index: int):
+        self.region.reset_chunk(index)
+        self.entities.reset_chunk(index)

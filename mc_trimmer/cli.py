@@ -2,14 +2,9 @@ from argparse import SUPPRESS, ArgumentParser
 from multiprocessing import cpu_count
 from pathlib import Path
 
-from mc_trimmer.main import (
-    ChunkMetadata,
-    CommandError,
-    process_world,
-    RegionLike,
-    RegionManager,
-    Trim,
-)
+
+from .commands import Trim, process_world, RegionManager
+from .primitives import RegionLike
 
 from . import Paths
 from .__version__ import __version__
