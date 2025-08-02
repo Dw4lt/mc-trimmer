@@ -32,7 +32,4 @@ version = { attr = "mc_trimmer.__version__.__version__" }
 line-length = 120
 
 [dependency-groups]
-dev = [
-    "black>=23.7.0",
-    "pytest>=8.3.5",
-]
+dev = ["black>=25.1.0", "pytest>=8.4.1"]
