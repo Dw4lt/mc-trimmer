@@ -38,5 +38,16 @@
                 "tests"
             ]
         },
+        {
+            "name": "Generate schema",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "mc_trimmer",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "--generate-schema=./schema.json",
+    ]
+        },
     ]
 }

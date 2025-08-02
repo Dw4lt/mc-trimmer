@@ -2,7 +2,9 @@ from argparse import SUPPRESS, ArgumentParser
 from multiprocessing import cpu_count
 from pathlib import Path
 
+import rich
 
+from .pipeline import Config
 from .commands import Trim, process_world, RegionManager
 from .primitives import RegionLike
 
@@ -22,6 +24,14 @@ def run():
         help="Show this help message and exit.",  # Default implementation is not capitalized
         action="help",
         default=SUPPRESS,
+    )
+
+    parser.add_argument(
+        "-s",
+        "--generate-schema",
+        dest="schema_destination",
+        help="Generate a JSON-Schema for the pipeline configuration and exit. This can be used by various text editors to provide type hints.",
+        type=Path,
     )
 
     action = parser.add_subparsers(
@@ -78,9 +88,18 @@ def run():
     )
 
     # Parse
-    args, _ = parser.parse_known_args()
+    args = parser.parse_args()
 
-    threads: int | None = args.threads
+    if schema_destination := getattr(args, "schema_destination", None):
+        Config.to_schema(schema_destination)
+        rich.print(f"Schema saved to '{schema_destination}'")
+        rich.print("Hint: if you are using VScode, you can add the following to your settings:")
+        rich.print_json(
+            """{"json.schemas": [{"fileMatch": ["*.test.json"],"url": """ + f'"{schema_destination}"' + """}]}"""
+        )
+        return
+
+    threads: int = getattr(args, "threads", 1)
     paths = Paths(
         inp=Path(args.input_dir),
         outp=Path(args.output_dir) if getattr(args, "output_dir", None) is not None else Path(args.input_dir),
