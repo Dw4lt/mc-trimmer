@@ -2,7 +2,7 @@ import os
 import struct
 import zlib
 from pathlib import Path
-from typing import Callable, Self
+from typing import Callable, Self, override
 
 from mc_trimmer.primitives import (
     INT_STRATEGY,
@@ -75,7 +75,7 @@ class Chunk(Serializable):
     def __bytes__(self) -> bytes:
         return bytes(self._compressed_data)
 
-    @property
+    @override
     def SIZE(self) -> int:
         return len(self._compressed_data)
 
@@ -111,7 +111,7 @@ class RegionFile(RegionLike):
             self.dirty |= cd.data.conditional_reset(condition)
 
     @classmethod
-    def from_file(cls, region: Path) -> Self:
+    def from_file(cls, region: Path) -> "RegionFile":
         with open(region, "+rb") as f:
             data = memoryview(f.read()).toreadonly()
             chunk_location_data: bytes = data[: Sizes.LOCATION_DATA_SIZE]

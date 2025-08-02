@@ -79,41 +79,38 @@ class Sizes(IntEnum):
 
 
 class Meta(type):
-    def __mul__(mcs: Type[S], i: int) -> Callable[[], "ArrayOfSerializable[S]"]:
+    def __mul__[TYPE: "Serializable"](mcs: type[TYPE], i: int) -> Callable[[], "ArrayOfSerializable[TYPE]"]:
         """With T = Type[Serializable], T * int = ArrayofSerializable[T] of size int"""
         assert Serializable in mcs.__mro__
 
-        def curry():
-            return ArrayOfSerializable[mcs](mcs, i)
+        return lambda: ArrayOfSerializable(mcs, i)
 
-        return curry
+    @classmethod
+    @abstractmethod
+    def STATIC_SIZE(cls) -> int: ...
 
 
 class Serializable(metaclass=Meta):
     @abstractmethod
-    def __bytes__(self) -> bytes:
-        ...
+    def __bytes__(self) -> bytes: ...
 
     @classmethod
     @abstractmethod
-    def from_bytes(cls, data: bytes) -> Self:
-        ...
+    def from_bytes(cls, data: bytes) -> Self: ...
 
-    @classmethod
     @property
-    @abstractmethod
-    def SIZE(cls) -> int:
-        ...
+    def SIZE(self) -> int:
+        return self.__class__.STATIC_SIZE()
 
 
-class ArrayOfSerializable(list[S]):
-    def __init__(self, cls: type[S], len: int) -> None:
+class ArrayOfSerializable[CLS: Serializable](list[CLS]):
+    def __init__(self, cls: Type[CLS], len: int) -> None:
         self._len: int = len
-        self._cls: Type[Serializable] = cls
+        self._cls: Type[CLS] = cls
 
-    def from_bytes(self, data: bytes) -> Self:
+    def from_bytes(self, data: bytes) -> "ArrayOfSerializable[CLS]":
         for i in range(self._len):
-            obj: S = self._cls.from_bytes(data[i * self._cls.SIZE : (i + 1) * self._cls.SIZE])  # type: ignore
+            obj: S = self._cls.from_bytes(data[i * self._cls.STATIC_SIZE() : (i + 1) * self._cls.STATIC_SIZE()])  # type: ignore
             self.append(obj)
         return self
 
@@ -144,8 +141,7 @@ class SerializableLocation(Serializable):
         return struct.pack(">IB", self.offset, self.size)[1:]
 
     @classmethod
-    @property
-    def SIZE(cls) -> int:
+    def STATIC_SIZE(cls) -> int:
         return 4
 
 
@@ -165,8 +161,7 @@ class Timestamp(Serializable):
         return struct.pack(">I", self.timestamp)
 
     @classmethod
-    @property
-    def SIZE(cls) -> int:
+    def STATIC_SIZE(cls) -> int:
         return 4
 
 
@@ -195,12 +190,10 @@ class ChunkDataDict(dict[int, ChunkDataBase[S]]):
 
 class RegionLike(ABC):
     @abstractmethod
-    def reset_chunk(self, index: int) -> None:
-        ...
+    def reset_chunk(self, index: int) -> None: ...
 
     @abstractmethod
-    def __bytes__(self) -> bytes:
-        ...
+    def __bytes__(self) -> bytes: ...
 
     def save_to_file(self, file: Path) -> None:
         data = bytes(self)

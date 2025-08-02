@@ -1,3 +1,4 @@
+from typing import override
 import zlib
 from .primitives import *
 
@@ -40,7 +41,7 @@ class Entity(Serializable):
     def __bytes__(self) -> bytes:
         return bytes(self._compressed_data)
 
-    @property
+    @override
     def SIZE(self) -> int:
         return len(self._compressed_data)
 
@@ -67,7 +68,7 @@ class EntitiesFile(RegionLike):
         return RegionLike.to_bytes(self.entity_data)
 
     @classmethod
-    def from_file(cls, file: Path) -> Self:
+    def from_file(cls, file: Path) -> "EntitiesFile":
         with open(file, "+rb") as f:
             data = memoryview(f.read()).toreadonly()
             chunk_location_data: bytes = data[: Sizes.LOCATION_DATA_SIZE]
