@@ -9,6 +9,7 @@
             "console": "integratedTerminal",
             "justMyCode": false,
             "args": [
+                "trim",
                 "-i",
                 "./tests/test_in",
                 "-o",

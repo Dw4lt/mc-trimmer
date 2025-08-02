@@ -1,3 +1,4 @@
+from abc import ABC, abstractmethod
 import shutil
 from dataclasses import dataclass
 from functools import partial
@@ -94,30 +95,39 @@ class RegionManager:
                 shutil.copy2(self._paths.inp_entities / file_name, self._paths.outp_entities / file_name)
 
 
-CRITERIA_MAPPING: dict[str, Callable[["Chunk", "Entity"], bool]] = {
-    "inhabited_time<15s": lambda chunk, _: chunk.InhabitedTime <= 1200 * 0.25,
-    "inhabited_time<30s": lambda chunk, _: chunk.InhabitedTime <= 1200 * 0.5,
-    "inhabited_time<1m": lambda chunk, _: chunk.InhabitedTime <= 1200,
-    "inhabited_time<2m": lambda chunk, _: chunk.InhabitedTime <= 1200 * 2,
-    "inhabited_time<3m": lambda chunk, _: chunk.InhabitedTime <= 1200 * 3,
-    "inhabited_time<5m": lambda chunk, _: chunk.InhabitedTime <= 1200 * 5,
-    "inhabited_time<10m": lambda chunk, _: chunk.InhabitedTime <= 1200 * 10,
-}
+class Command(ABC):
+    @abstractmethod
+    def run(self, manager: RegionManager, region_name: str):
+        pass
 
 
-def process_region(manager: RegionManager, criteria: Callable[[Chunk, Entity], bool], file_name: str):
-    region: Region = manager.open_file(file_name=file_name)
-    manager.trim(region=region, condition=criteria)
-    manager.save_to_file(region=region, file_name=file_name)
+class Trim(Command):
+    CRITERIA_MAPPING: dict[str, Callable[["Chunk", "Entity"], bool]] = {
+        "inhabited_time<15s": lambda chunk, _: chunk.InhabitedTime <= 1200 * 0.25,
+        "inhabited_time<30s": lambda chunk, _: chunk.InhabitedTime <= 1200 * 0.5,
+        "inhabited_time<1m": lambda chunk, _: chunk.InhabitedTime <= 1200,
+        "inhabited_time<2m": lambda chunk, _: chunk.InhabitedTime <= 1200 * 2,
+        "inhabited_time<3m": lambda chunk, _: chunk.InhabitedTime <= 1200 * 3,
+        "inhabited_time<5m": lambda chunk, _: chunk.InhabitedTime <= 1200 * 5,
+        "inhabited_time<10m": lambda chunk, _: chunk.InhabitedTime <= 1200 * 10,
+    }
+
+    def __init__(self, criteria: str) -> None:
+        self._criteria: Callable[[Chunk, Entity], bool] = Trim.CRITERIA_MAPPING[criteria]
+
+    def run(self, manager: RegionManager, region_name: str):
+        region: Region = manager.open_file(file_name=region_name)
+        manager.trim(region=region, condition=self._criteria)
+        manager.save_to_file(region=region, file_name=region_name)
 
 
-def process_batch(manager: RegionManager, criteria: str, file_names: list[str]) -> list[tuple[Exception, str]]:
+def process_batch(manager: RegionManager, command: Command, file_names: list[str]) -> list[tuple[Exception, str]]:
     l = len(file_names)
     exceptions: list[tuple[Exception, str]] = []
     for i, r in enumerate(file_names, start=1):
         print(f"Processing region {r} ({i}/{l})")
         try:
-            process_region(manager, CRITERIA_MAPPING[criteria], r)
+            command.run(manager=manager, region_name=r)
         except AssertionError as e:
             e.add_note(f"[E]: AssertionError while processing {r}")
             tb = str(traceback.extract_tb(sys.exc_info()[2]))
@@ -129,14 +139,14 @@ def process_batch(manager: RegionManager, criteria: str, file_names: list[str]) 
     return exceptions
 
 
-def main(*, threads: int | None, paths: Paths, trimming_criteria: str) -> None:
+def process_world(*, threads: int | None, paths: Paths, command: Command) -> None:
     rm = RegionManager(paths=paths)
     region_file_names: Iterable[str] = RegionLike.get_regions(paths.inp_region)
 
     if threads is None:
         res = process_batch(
             manager=rm,
-            criteria=trimming_criteria,
+            command=command,
             file_names=list(region_file_names),
         )
         for e, traceback in res:
@@ -146,7 +156,7 @@ def main(*, threads: int | None, paths: Paths, trimming_criteria: str) -> None:
         for i, r in enumerate(region_file_names):
             work[i % threads].append(r)
 
-        foo = partial(process_batch, rm, trimming_criteria)
+        foo = partial(process_batch, rm, command)
         with Pool(threads) as p:
             res = p.map(func=foo, iterable=work)
             pass

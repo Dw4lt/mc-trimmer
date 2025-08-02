@@ -87,7 +87,7 @@ def test_EntityFile(file: str, filter: Callable[[Entity], bool] | None):
         ("simple.mca", None),
     ],
 )
-def test_all(file: str, filter: Callable[[Chunk, Entity], bool]):
+def test_trim(file: str, filter: Callable[[Chunk, Entity], bool]):
     expected_paths = Paths(
         inp=Path(input_dir),
         outp=Path(output_dir),
