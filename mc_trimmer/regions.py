@@ -119,7 +119,7 @@ class RegionFile(RegionLike):
 
     @classmethod
     def from_file(cls, region: Path) -> "RegionFile":
-        with open(region, "+rb") as f:
+        with open(region, "rb") as f:
             data = memoryview(f.read()).toreadonly()
             chunk_location_data: bytes = data[: Sizes.LOCATION_DATA_SIZE]
             timestamps_data: bytes = data[
