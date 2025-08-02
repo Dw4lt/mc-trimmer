@@ -99,18 +99,17 @@ def run():
         )
         return
 
-    threads: int = getattr(args, "threads", 1)
-    paths = Paths(
-        inp=Path(args.input_dir),
-        outp=Path(args.output_dir) if getattr(args, "output_dir", None) is not None else Path(args.input_dir),
-        backup=Path(args.backup_dir) if getattr(args, "backup_dir", None) else None,
-    )
-
     # Run
-    region_manager = RegionManager(paths=paths)
-    region_file_names: list[str] = list(RegionLike.get_regions(paths.inp_region))
     match args.action:
         case "trim":
+            threads: int = getattr(args, "threads", 1)
+            paths = Paths(
+                inp=Path(args.input_dir),
+                outp=Path(args.output_dir) if getattr(args, "output_dir", None) is not None else Path(args.input_dir),
+                backup=Path(args.backup_dir) if getattr(args, "backup_dir", None) else None,
+            )
+            region_manager = RegionManager(paths=paths)
+            region_file_names: list[str] = list(RegionLike.get_regions(paths.inp_region))
             for _ in process_world(
                 threads=threads,
                 command=Trim(args.trimming_criteria),
