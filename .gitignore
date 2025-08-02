@@ -7,3 +7,5 @@ dist.pdm-python
 *.egg-info
 tests/debug/
 build
+SORT_OUT
+tests
