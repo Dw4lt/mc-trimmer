@@ -7,7 +7,7 @@ authors = [
 ]
 dependencies = [
     "NBT>=1.5.1",
-    "multiprocess>=0.70.15",
+    "multiprocess>=0.70.18",
 ]
 requires-python = ">=3.11"
 readme = "README.md"

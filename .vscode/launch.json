@@ -3,7 +3,7 @@
     "configurations": [
         {
             "name": "PDM Cli Example",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "module": "mc_trimmer",
             "console": "integratedTerminal",
@@ -22,7 +22,7 @@
         },
         {
             "name": "Pytest",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "module": "pytest",
             "console": "integratedTerminal",
