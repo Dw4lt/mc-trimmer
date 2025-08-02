@@ -2,7 +2,14 @@ from argparse import SUPPRESS, ArgumentParser
 from multiprocessing import cpu_count
 from pathlib import Path
 
-from mc_trimmer.main import Trim, Command, process_world
+from mc_trimmer.main import (
+    ChunkMetadata,
+    CommandError,
+    process_world,
+    RegionLike,
+    RegionManager,
+    Trim,
+)
 
 from . import Paths
 from .__version__ import __version__
@@ -78,7 +85,6 @@ def run():
     # Parse
     args, _ = parser.parse_known_args()
 
-    command: Command = None  # type: ignore
     threads: int | None = args.threads
     paths = Paths(
         inp=Path(args.input_dir),
@@ -86,11 +92,17 @@ def run():
         backup=Path(args.backup_dir) if getattr(args, "backup_dir", None) else None,
     )
 
+    # Run
+    region_manager = RegionManager(paths=paths)
+    region_file_names: list[str] = list(RegionLike.get_regions(paths.inp_region))
     match args.action:
         case "trim":
-            command = Trim(args.trimming_criteria)
+            for _ in process_world(
+                threads=threads,
+                command=Trim(args.trimming_criteria),
+                region_manager=region_manager,
+                region_file_names=region_file_names,
+            ):
+                pass
         case _:
             raise Exception(f"Unknown option: '{args.action}'")
-
-    assert command
-    process_world(threads=threads, paths=paths, command=command)

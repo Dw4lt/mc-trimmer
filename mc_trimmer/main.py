@@ -4,12 +4,12 @@ from dataclasses import dataclass
 from functools import partial
 import sys
 import traceback
-from typing import Callable, Iterable
+from typing import Callable, Generic, Iterable, override
 
 from multiprocess.pool import Pool
 
 from mc_trimmer.entities import EntitiesFile, Entity
-from mc_trimmer.primitives import Paths, RegionLike
+from mc_trimmer.primitives import T, Paths, RegionLike
 from mc_trimmer.regions import Chunk, RegionFile
 
 
@@ -95,13 +95,30 @@ class RegionManager:
                 shutil.copy2(self._paths.inp_entities / file_name, self._paths.outp_entities / file_name)
 
 
-class Command(ABC):
+@dataclass
+class CommandError:
+    exception: Exception
+    traceback: str
+
+    def __str__(self) -> str:
+        return "\n".join(
+            (
+                "\n".join(self.exception.__notes__),
+                str(self.exception),
+                self.traceback,
+            )
+        )
+
+    def __repr__(self) -> str:
+        return str(self)
+
+
+class Command(ABC, Generic[T]):
     @abstractmethod
-    def run(self, manager: RegionManager, region_name: str):
-        pass
+    def run(self, manager: RegionManager, region_name: str) -> T: ...
 
 
-class Trim(Command):
+class Trim(Command[None]):
     CRITERIA_MAPPING: dict[str, Callable[["Chunk", "Entity"], bool]] = {
         "inhabited_time<15s": lambda chunk, _: chunk.InhabitedTime <= 1200 * 0.25,
         "inhabited_time<30s": lambda chunk, _: chunk.InhabitedTime <= 1200 * 0.5,
@@ -115,51 +132,42 @@ class Trim(Command):
     def __init__(self, criteria: str) -> None:
         self._criteria: Callable[[Chunk, Entity], bool] = Trim.CRITERIA_MAPPING[criteria]
 
-    def run(self, manager: RegionManager, region_name: str):
+    @override
+    def run(self, manager: RegionManager, region_name: str) -> None:
         region: Region = manager.open_file(file_name=region_name)
         manager.trim(region=region, condition=self._criteria)
         manager.save_to_file(region=region, file_name=region_name)
 
 
-def process_batch(manager: RegionManager, command: Command, file_names: list[str]) -> list[tuple[Exception, str]]:
-    l = len(file_names)
-    exceptions: list[tuple[Exception, str]] = []
-    for i, r in enumerate(file_names, start=1):
-        print(f"Processing region {r} ({i}/{l})")
-        try:
-            command.run(manager=manager, region_name=r)
-        except AssertionError as e:
-            e.add_note(f"[E]: AssertionError while processing {r}")
-            tb = str(traceback.extract_tb(sys.exc_info()[2]))
-            exceptions.append((e, tb))
-        except Exception as e:
-            e.add_note(f"[E]: Exception while processing {r}")
-            tb = str(traceback.extract_tb(sys.exc_info()[2]))
-            exceptions.append((e, tb))
-    return exceptions
+def error_handling_wrapper[T](
+    manager: RegionManager,
+    command: Command[T],
+    region_name: str,
+) -> CommandError | T:
+    try:
+        return command.run(manager=manager, region_name=region_name)
+    except AssertionError as e:
+        e.add_note(f"[E]: AssertionError while processing {region_name}")
+        tb = traceback.format_exc()
+        return CommandError(exception=e, traceback=tb)
+    except Exception as e:
+        e.add_note(f"[E]: Exception while processing {region_name}")
+        tb = traceback.format_exc()
+        return CommandError(exception=e, traceback=tb)
 
 
-def process_world(*, threads: int | None, paths: Paths, command: Command) -> None:
-    rm = RegionManager(paths=paths)
-    region_file_names: Iterable[str] = RegionLike.get_regions(paths.inp_region)
+def process_world(
+    *,
+    region_manager: RegionManager,
+    threads: int,
+    region_file_names: list[str],
+    command: Command[T],
+) -> Iterable[CommandError | T]:
 
     if threads is None:
-        res = process_batch(
-            manager=rm,
-            command=command,
-            file_names=list(region_file_names),
-        )
-        for e, traceback in res:
-            print("\n".join(e.__notes__), e, traceback)
-    else:
-        work: list[list[str]] = [[] for _ in range(threads)]
-        for i, r in enumerate(region_file_names):
-            work[i % threads].append(r)
+        threads = 1
 
-        foo = partial(process_batch, rm, command)
-        with Pool(threads) as p:
-            res = p.map(func=foo, iterable=work)
-            pass
-        for combo in res:
-            for e, traceback in combo:
-                print("\n".join(e.__notes__), e, traceback)
+    foo = partial(error_handling_wrapper, region_manager, command)
+    with Pool(threads) as p:
+        for x in p.imap_unordered(func=foo, iterable=region_file_names, chunksize=10):
+            yield x
