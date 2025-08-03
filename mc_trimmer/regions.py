@@ -93,6 +93,7 @@ class RegionFile(RegionLike):
     def __init__(self, chunk_location_data: bytes, timestamps_data: bytes, data: bytes) -> None:
         self.chunk_data: ChunkDataDict[Chunk] = ChunkDataDict[Chunk]()
         self.dirty: bool = False
+        assert len(chunk_location_data) > 0
 
         locations = LocationData().from_bytes(chunk_location_data)
         timestamps = TimestampData().from_bytes(timestamps_data)

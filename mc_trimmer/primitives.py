@@ -6,6 +6,8 @@ from enum import IntEnum
 from pathlib import Path
 from typing import Callable, Generic, Iterable, Self, Type, TypeVar
 
+import rich
+
 
 class Compression(IntEnum):
     ZLIB = 2
@@ -212,9 +214,9 @@ class RegionLike(ABC):
         if len(data) > Sizes.LOCATION_DATA_SIZE + Sizes.TIMESTAMPS_DATA_SIZE:
             with open(file, "wb") as f:
                 f.write(data)
-                print(f"Written {file}")
+                rich.print(f"Written {file}")
         else:
-            print(f"Deleting {file}")
+            rich.print(f"Deleting {file}")
             if file.exists() and file.is_file():
                 os.remove(file)
 

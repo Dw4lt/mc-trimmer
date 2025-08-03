@@ -1,5 +1,7 @@
 from typing import override
 import zlib
+
+import rich
 from .primitives import *
 
 
@@ -59,9 +61,11 @@ class EntitiesFile(RegionLike):
                 if loc.size > 0 and loc.offset >= 2:
                     start = loc.offset * Sizes.CHUNK_SIZE_MULTIPLIER
                     entity_data = data[start : start + loc.size * Sizes.CHUNK_SIZE_MULTIPLIER]
-
-                    d = ChunkDataBase(data=Entity.from_bytes(entity_data), location=loc, timestamp=ts, index=i)
-                    self.entity_data.append(d)
+                    try:
+                        d = ChunkDataBase(data=Entity.from_bytes(entity_data), location=loc, timestamp=ts, index=i)
+                        self.entity_data.append(d)
+                    except Exception as e:
+                        rich.print(e)
 
     def __bytes__(self) -> bytes:
         return RegionLike.to_bytes(self.entity_data)
