@@ -12,7 +12,7 @@ import rich.progress as progress
 
 from mc_trimmer.mca_selector import write_mca_selection
 
-from .pipeline import Extend, Pipeline, SaveSelection, Start, Filter, Condition, RadiallyExpandSelection
+from .pipeline import Extend, ExtendToRegion, Pipeline, SaveSelection, Start, Filter, Condition, RadiallyExpandSelection
 from .entities import EntitiesFile
 from .primitives import *
 from .entities import Entity
@@ -231,6 +231,16 @@ class PipelineExecutor:
                                 selection=self.__selected_chunks,
                             )
                         )
+                    case ExtendToRegion() as extend:
+                        task = prog.add_task(
+                            f"Step {step_nr}/{pipeline_length}: Extend section to affected regions",
+                            total=len(self.__selected_chunks),
+                        )
+                        self.__selected_chunks.update(
+                            self._extend_to_affected_regions(
+                                self.__selected_chunks, prog.track(self.__available_chunks, task_id=task)
+                            )
+                        )
                     case SaveSelection() as save:
                         task = prog.add_task(
                             f"Step {step_nr}/{pipeline_length}: Save selection in MCASelector format to '{save.MCASelector_csv_file}'",
@@ -248,6 +258,14 @@ class PipelineExecutor:
                 prog.log(
                     f"Step {step_nr}/{pipeline_length} '{step.root.command}': Chunks in selection: {len(self.__selected_chunks)} [{delta_text}]"
                 )
+
+    @staticmethod
+    def _extend_to_affected_regions(
+        selected: set[ChunkMetadata], available: Iterable[ChunkMetadata]
+    ) -> Iterable[ChunkMetadata]:
+        """Returns all chunks in `available` which share a region with one in `selected`"""
+        regions_of_interest: set[tuple[int, int]] = set(c.region_coordinate for c in selected)
+        return filter(lambda c: c.region_coordinate in regions_of_interest, available)
 
     @staticmethod
     def _make_circular_kernel(radius: int) -> set[tuple[int, int]]:
