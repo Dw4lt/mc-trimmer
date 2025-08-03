@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import shutil
 import traceback
 
@@ -100,6 +100,35 @@ class Trim(Command[None]):
         region: Region = manager.open_file(file_name=region_name)
         self.trim(region=region, elimination_condition=self._criteria)
         manager.save_to_file(region=region, file_name=region_name)
+
+
+@dataclass(unsafe_hash=True)
+class ChunkMetadata:
+    x: int = field(hash=True)
+    y: int = field(hash=True)
+    inhabited_time: int
+
+    @property
+    def region_coordinate(self) -> tuple[int, int]:
+        return self.x // 32, self.y // 32
+
+
+class GatherMetadata(Command[list[ChunkMetadata]]):
+    def __init__(self) -> None:
+        super().__init__()
+
+    @staticmethod
+    def _gather_metadata(region: Region) -> Iterable[ChunkMetadata]:
+        for i, chunk, entity in region.iterate():
+            try:
+                yield ChunkMetadata(x=chunk.xPos, y=chunk.zPos, inhabited_time=chunk.InhabitedTime)
+            except Exception:
+                pass
+
+    @override
+    def run(self, manager: RegionManager, region_name: str) -> list[ChunkMetadata]:
+        region: Region = manager.open_file(file_name=region_name)
+        return list(self._gather_metadata(region))
 
 
 def error_handling_wrapper[T](
