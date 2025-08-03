@@ -2,7 +2,7 @@ from collections.abc import Iterator
 from enum import Enum
 import json
 from pathlib import Path
-from typing import Annotated, Literal, Optional, Union
+from typing import Literal
 from pydantic import BaseModel, Field, RootModel
 
 
@@ -102,3 +102,9 @@ class Config(RootModel):
     def to_schema(file: Path):
         with open(file, "w") as f:
             f.write(json.dumps(Config.model_json_schema(), indent=4))
+
+    @staticmethod
+    def load(file: Path) -> "Config":
+        with open(file, "r") as f:
+            model = Config.model_validate_json(f.read())
+            return model

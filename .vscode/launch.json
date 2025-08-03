@@ -49,5 +49,18 @@
                 "--generate-schema=./schema.json",
     ]
         },
+        {
+            "name": "Validate pipeline config",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "mc_trimmer",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "pipeline",
+                "--validate",
+                "./asdf.test.json"
+            ]
+        },
     ]
 }

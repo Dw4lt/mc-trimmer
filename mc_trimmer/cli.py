@@ -39,6 +39,18 @@ def run():
         description="Which action you would like to perform. Each with their own arguments.",
         dest="action",
     )
+
+    pipeline = action.add_parser(
+        "pipeline",
+        description="A selection of commands relating to a pipeline. Effectively, this is a data-driven command interface.",
+    )
+    pipeline.add_argument(
+        "--validate",
+        dest="validate_pipeline",
+        type=Path,
+        help="Validate a pipeline to ensure the contents are valid and exit.",
+    )
+
     trim = action.add_parser(
         name="trim",
         description="Delete/Export select regions",
@@ -101,6 +113,11 @@ def run():
 
     # Run
     match args.action:
+        case "pipeline":
+            if pipeline := getattr(args, "validate_pipeline", None):
+                Config.load(pipeline)
+                rich.print("Pipeline deemed valid. Exiting.")
+                return
         case "trim":
             threads: int = getattr(args, "threads", 1)
             paths = Paths(
