@@ -61,9 +61,6 @@ class ExtendToRegion(BaseModel):
     command: Literal["select_affected_regions"] = Field(
         description="If a region contains a chunk which is part of the selection, select the entire region."
     )
-    zzzz: bool = Field(
-        description="it's a long story..."
-    )  # TODO: if one of the union members can be default-constructed, VSCode bugs out and discards all other options.
 
 
 class MoveSelected(BaseModel):
