@@ -51,8 +51,10 @@ class DeleteSelected(BaseModel):
 
 
 class SaveSelection(BaseModel):
-    command: Literal["save_selection"]
-    MCASelector_xml_file: Path
+    command: Literal["save_selection"] = Field(
+        description="Save the current selection as a MCASelector compatible .csv file."
+    )
+    MCASelector_csv_file: Path
 
 
 class ExtendToRegion(BaseModel):

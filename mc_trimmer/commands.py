@@ -10,7 +10,9 @@ from functools import partial
 import rich
 import rich.progress as progress
 
-from .pipeline import Extend, Pipeline, Start, Filter, Condition, RadiallyExpandSelection
+from mc_trimmer.mca_selector import write_mca_selection
+
+from .pipeline import Extend, Pipeline, SaveSelection, Start, Filter, Condition, RadiallyExpandSelection
 from .entities import EntitiesFile
 from .primitives import *
 from .entities import Entity
@@ -228,6 +230,15 @@ class PipelineExecutor:
                                 available_chunks=self.__available_chunks,
                                 selection=self.__selected_chunks,
                             )
+                        )
+                    case SaveSelection() as save:
+                        task = prog.add_task(
+                            f"Step {step_nr}/{pipeline_length}: Save selection in MCASelector format to '{save.MCASelector_csv_file}'",
+                            total=len(self.__selected_chunks),
+                        )
+                        write_mca_selection(
+                            output_csv=save.MCASelector_csv_file,
+                            selection=prog.track(((c.x, c.y) for c in self.__selected_chunks), task_id=task),
                         )
                     case _:
                         raise Exception(f"Unimplemented command: {step.root.command}")
