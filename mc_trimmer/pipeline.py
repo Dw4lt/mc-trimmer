@@ -39,10 +39,10 @@ class Extend(BaseModel):
 
 
 class RadiallyExpandSelection(BaseModel):
-    command: Literal["radiallyexpand_selection"] = Field(
+    command: Literal["radially_expand_selection"] = Field(
         description="For each chunk in the selection, include all neighbours within a radius of N chunks around it.\nWarning: a large radius combined with an already large selection may take a long time."
     )
-    radius: int
+    radius: int = Field(gt=0)
 
 
 class DeleteSelected(BaseModel):

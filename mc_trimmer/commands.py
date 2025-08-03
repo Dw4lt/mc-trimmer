@@ -1,5 +1,6 @@
 from cmath import log
 from dataclasses import dataclass, field
+import itertools
 from math import ceil, floor
 import shutil
 import traceback
@@ -9,7 +10,7 @@ from functools import partial
 import rich
 import rich.progress as progress
 
-from .pipeline import Extend, Pipeline, Start, Filter, Condition
+from .pipeline import Extend, Pipeline, Start, Filter, Condition, RadiallyExpandSelection
 from .entities import EntitiesFile
 from .primitives import *
 from .entities import Entity
@@ -108,9 +109,9 @@ class Trim(Command[None]):
 
 @dataclass(unsafe_hash=True)
 class ChunkMetadata:
-    x: int = field(hash=True)
-    y: int = field(hash=True)
-    inhabited_time: int
+    x: int = field(hash=True, compare=True)
+    y: int = field(hash=True, compare=True)
+    inhabited_time: int = field(hash=False, compare=False)
 
     @property
     def region_coordinate(self) -> tuple[int, int]:
@@ -213,6 +214,21 @@ class PipelineExecutor:
                         task = prog.add_task(f"Step {step_nr}/{pipeline_length}: Extend selection")
                         foo = self._make_filter(extend.condition)
                         self.__selected_chunks.update(self._run_filter(prog, task, foo, self.__available_chunks))
+                    case RadiallyExpandSelection() as expand:
+                        task = prog.add_task(
+                            f"Step {step_nr}/{pipeline_length}: Radially extend selection (r={expand.radius})",
+                            total=len(self.__selected_chunks),
+                        )
+                        self.__selected_chunks.update(
+                            self._radially_expand_selection(
+                                prog=prog,
+                                task=task,
+                                threads=self.__pipeline.threads,
+                                select_radius=expand.radius,
+                                available_chunks=self.__available_chunks,
+                                selection=self.__selected_chunks,
+                            )
+                        )
                     case _:
                         raise Exception(f"Unimplemented command: {step.root.command}")
                 end_cnt = len(self.__selected_chunks)
@@ -221,6 +237,68 @@ class PipelineExecutor:
                 prog.log(
                     f"Step {step_nr}/{pipeline_length} '{step.root.command}': Chunks in selection: {len(self.__selected_chunks)} [{delta_text}]"
                 )
+
+    @staticmethod
+    def _make_circular_kernel(radius: int) -> set[tuple[int, int]]:
+        ret = set()
+        for x in range(radius + 1):
+            for y in range(radius + 1):
+                if (x) ** 2 + (y) ** 2 <= radius**2:
+                    ret.add((x, y))
+                    ret.add((-x, y))
+                    ret.add((x, -y))
+                    ret.add((-x, -y))
+        ret.remove((0, 0))  # Uninteresting chunk
+        return ret
+
+    @staticmethod
+    def _radially_expand_selection(
+        *,
+        prog: progress.Progress,
+        task: progress.TaskID,
+        threads: int,
+        select_radius: int,
+        available_chunks: set[ChunkMetadata],
+        selection: set[ChunkMetadata],
+    ) -> set[ChunkMetadata]:
+        """
+        Steps:
+        - gather all unselected chunk coordinates
+        - for each selected chunk, mark its neighbour coordinates
+        - collect all marks and pick those chunks (if they exist) from the available chunks list
+
+        Note: the batch size is important, as it allows each thread in the pool to filter out some duplicates,
+        rather than handing that task back to the main thread.
+        """
+
+        kernel = PipelineExecutor._make_circular_kernel(select_radius)
+
+        # Switch to raw coordinate tuples to minimize inter-process IO
+        selected_coords: set[tuple[int, int]] = {(c.x, c.y) for c in selection}
+        currently_unselected_coords: set[tuple[int, int]] = {(c.x, c.y) for c in available_chunks.difference(selection)}
+
+        def filter_for_neighbors(inputs: Iterable[tuple[int, int]]) -> set[tuple[int, int]]:
+            ret = set()
+            for coord in inputs:
+                for offset in kernel:
+                    neighbor = coord[0] + offset[0], coord[1] + offset[1]
+                    ret.add(neighbor)
+            return ret
+
+        coords_to_include: set[tuple[int, int]] = set()
+
+        with Pool(threads) as pool:
+            batch_size = 500
+            for i, res in enumerate(
+                pool.imap_unordered(
+                    filter_for_neighbors,
+                    itertools.batched(selected_coords, n=batch_size),
+                )
+            ):
+                prog.advance(task, advance=min(batch_size, len(selection) - i * batch_size))
+                coords_to_include.update(res & currently_unselected_coords)
+        expanded_selection = selection | set(filter(lambda c: (c.x, c.y) in coords_to_include, available_chunks))
+        return expanded_selection
 
     @staticmethod
     def _make_filter(condition: Condition) -> Callable[[ChunkMetadata], bool]:
