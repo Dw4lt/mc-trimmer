@@ -1,11 +1,15 @@
+from cmath import log
 from dataclasses import dataclass, field
+from math import ceil, floor
 import shutil
 import traceback
 
 from multiprocess.pool import Pool
 from functools import partial
 import rich
+import rich.progress as progress
 
+from .pipeline import Extend, Pipeline, Start, Filter, Condition
 from .entities import EntitiesFile
 from .primitives import *
 from .entities import Entity
@@ -163,3 +167,109 @@ def process_world(
     with Pool(threads) as p:
         for x in p.imap_unordered(func=foo, iterable=region_file_names, chunksize=10):
             yield x
+
+
+class PipelineExecutor:
+    def __init__(self, pipeline: Pipeline) -> None:
+        self.__pipeline = pipeline
+        self.__available_chunks: set[ChunkMetadata] = set()
+        self.__selected_chunks: set[ChunkMetadata] = set()
+        self.__regions: list[str] = []
+        self.__paths = Paths(inp=pipeline.input_folder)
+        self.__region_manager = RegionManager(self.__paths)
+        pass
+
+    def setup(self, prog: progress.Progress):
+        self.__regions.extend(self._gather_all_regions())
+        prog.log(f"Found {len(self.__regions)} regions.")
+
+        self._gather_all_chunks(prog)
+        if self.__pipeline.start_with == Start.ALL_CHUNKS_SELECTED:
+            self.__selected_chunks = self.__available_chunks
+        prog.log(f"Starting selection: {len(self.__selected_chunks)}/{len(self.__available_chunks)} chunks")
+
+    def execute(self):
+        with progress.Progress(
+            progress.SpinnerColumn(finished_text="✅"),
+            progress.TextColumn("[progress.description]{task.description}"),
+            progress.BarColumn(),
+            progress.MofNCompleteColumn(),
+            progress.TaskProgressColumn(show_speed=True),
+            progress.TimeElapsedColumn(),
+            progress.TimeRemainingColumn(),
+        ) as prog:
+            self.setup(prog)
+
+            pipeline_length = len(self.__pipeline.command_chain)
+            for step_nr, step in enumerate(self.__pipeline.command_chain, 1):
+                start_cnt = len(self.__selected_chunks)
+                task: progress.TaskID
+                match step.root:
+                    case Filter() as filter:
+                        task = prog.add_task(f"Step {step_nr}/{pipeline_length}: Fiter selection")
+                        foo = self._make_filter(filter.condition)
+                        self.__selected_chunks = set(self._run_filter(prog, task, foo, self.__selected_chunks))
+                    case Extend() as extend:
+                        task = prog.add_task(f"Step {step_nr}/{pipeline_length}: Extend selection")
+                        foo = self._make_filter(extend.condition)
+                        self.__selected_chunks.update(self._run_filter(prog, task, foo, self.__available_chunks))
+                    case _:
+                        raise Exception(f"Unimplemented command: {step.root.command}")
+                end_cnt = len(self.__selected_chunks)
+                delta = end_cnt - start_cnt
+                delta_text = f"[red]{delta:+}[/red]" if delta < 0 else f"[green]{delta:+}[/green]"
+                prog.log(
+                    f"Step {step_nr}/{pipeline_length} '{step.root.command}': Chunks in selection: {len(self.__selected_chunks)} [{delta_text}]"
+                )
+
+    @staticmethod
+    def _make_filter(condition: Condition) -> Callable[[ChunkMetadata], bool]:
+        criteria: list[Callable[[ChunkMetadata], bool]] = []
+        if condition.minimum_inhabited_minutes is not None:
+            ticks = floor(condition.minimum_inhabited_minutes * 1200)
+            criteria.append(lambda x: x.inhabited_time >= ticks)
+        if condition.maximum_inhabited_minutes is not None:
+            ticks = ceil(condition.maximum_inhabited_minutes * 1200)
+            criteria.append(lambda x: x.inhabited_time <= ticks)
+
+        def foo(filter: list[Callable[[ChunkMetadata], bool]], chunk: ChunkMetadata) -> bool:
+            for f in filter:
+                if not f(chunk):
+                    return False
+            return True
+
+        return partial(foo, criteria)
+
+    @staticmethod
+    def _run_filter(
+        prog: progress.Progress,
+        task: progress.TaskID,
+        condition: Callable[[ChunkMetadata], bool],
+        input: set[ChunkMetadata],
+    ) -> Iterable[ChunkMetadata]:
+        return filter(condition, prog.track(input, total=len(input), task_id=task))
+
+    def _gather_all_regions(self) -> set[str]:
+        return set(RegionLike.get_regions(self.__paths.inp_region))
+
+    def _gather_all_chunks(self, prog: progress.Progress):
+        gather_metadata = prog.add_task(
+            f"Gathering metadata on all {len(self.__regions)} regions in '{self.__pipeline.input_folder}'",
+            start=True,
+            total=len(self.__regions),
+        )
+        for result in process_world(
+            region_manager=self.__region_manager,
+            threads=self.__pipeline.threads,
+            region_file_names=self.__regions,
+            command=GatherMetadata(),
+        ):
+            match result:
+                case [*content] if len(content) == 0 or isinstance(content[0], ChunkMetadata):
+                    self.__available_chunks.update(content)
+                case CommandError() as err:
+                    rich.print(err)
+                case _:
+                    raise Exception(f"Unknown scenario: {result}")
+            prog.advance(gather_metadata)
+        prog.log(f"Found {len(self.__available_chunks)} chunks.")

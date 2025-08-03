@@ -1,6 +1,7 @@
 from collections.abc import Iterator
 from enum import Enum
 import json
+import os
 from pathlib import Path
 from typing import Literal
 from pydantic import BaseModel, Field, RootModel
@@ -86,6 +87,10 @@ class PipelineStep(RootModel):
 class Pipeline(BaseModel):
     input_folder: Path
     start_with: Start
+    threads: int = Field(
+        description="Number of threads to use at once. If unspecified, all available threads will be used.",
+        default_factory=lambda: (os.cpu_count() or 2) - 1,
+    )
     command_chain: list[PipelineStep] = Field(description="Sequence of commands to execute.")
 
 

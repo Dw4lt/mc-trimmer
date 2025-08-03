@@ -5,7 +5,7 @@ from pathlib import Path
 import rich
 
 from .pipeline import Config
-from .commands import Trim, process_world, RegionManager
+from .commands import PipelineExecutor, Trim, process_world, RegionManager
 from .primitives import RegionLike
 
 from . import Paths
@@ -49,6 +49,12 @@ def run():
         dest="validate_pipeline",
         type=Path,
         help="Validate a pipeline to ensure the contents are valid and exit.",
+    )
+    pipeline.add_argument(
+        "--execute",
+        dest="execute_pipeline",
+        type=Path,
+        help="Execute a pipeline.",
     )
 
     trim = action.add_parser(
@@ -118,6 +124,11 @@ def run():
                 Config.load(pipeline)
                 rich.print("Pipeline deemed valid. Exiting.")
                 return
+            elif pipeline := getattr(args, "execute_pipeline", None):
+                config = Config.load(pipeline)
+                for pipeline in config:
+                    PipelineExecutor(pipeline=pipeline).execute()
+
         case "trim":
             threads: int = getattr(args, "threads", 1)
             paths = Paths(
@@ -136,3 +147,4 @@ def run():
                 pass
         case _:
             raise Exception(f"Unknown option: '{args.action}'")
+    rich.print("Done.")

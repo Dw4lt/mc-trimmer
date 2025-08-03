@@ -19,7 +19,7 @@ class Paths:
     def __init__(self, inp: Path, outp: Path | None = None, backup: Path | None = None) -> None:
         if backup == inp:
             raise Exception("Input and backup directories cannot be the same.")
-        if backup == outp:
+        if backup == outp and backup is not None:
             raise Exception("Output and backup directories cannot be the same.")
         if not inp.exists():
             raise Exception("Input directory must exist.")
