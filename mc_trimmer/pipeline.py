@@ -72,15 +72,26 @@ class MoveSelected(BaseModel):
     destination: Path
 
 
+class InvertSelection(BaseModel):
+    command: Literal["invert_selection"]
+
+
 class Start(str, Enum):
     ALL_CHUNKS_SELECTED = "all_chunks_selected"
     NO_CHUNKS_SELECTED = "no_chunks_selected"
 
 
 class PipelineStep(RootModel):
-    root: Filter | Extend | MoveSelected | RadiallyExpandSelection | SaveSelection | DeleteSelected | ExtendToRegion = (
-        Field(discriminator="command")
-    )
+    root: (
+        Filter
+        | Extend
+        | MoveSelected
+        | RadiallyExpandSelection
+        | SaveSelection
+        | DeleteSelected
+        | ExtendToRegion
+        | InvertSelection
+    ) = Field(discriminator="command")
 
 
 class Pipeline(BaseModel):

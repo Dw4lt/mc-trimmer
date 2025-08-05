@@ -12,7 +12,17 @@ import rich.progress as progress
 
 from mc_trimmer.mca_selector import write_mca_selection
 
-from .pipeline import Extend, ExtendToRegion, Pipeline, SaveSelection, Start, Filter, Condition, RadiallyExpandSelection
+from .pipeline import (
+    Extend,
+    ExtendToRegion,
+    InvertSelection,
+    Pipeline,
+    SaveSelection,
+    Start,
+    Filter,
+    Condition,
+    RadiallyExpandSelection,
+)
 from .entities import EntitiesFile
 from .primitives import *
 from .entities import Entity
@@ -250,6 +260,11 @@ class PipelineExecutor:
                             output_csv=save.MCASelector_csv_file,
                             selection=prog.track(((c.x, c.y) for c in self.__selected_chunks), task_id=task),
                         )
+                    case InvertSelection():
+                        task = prog.add_task(
+                            f"Step {step_nr}/{pipeline_length}: Invert selection", total=len(self.__selected_chunks) + len(self.__available_chunks)
+                        )
+                        self.__selected_chunks = self.__available_chunks.difference(self.__selected_chunks)
                     case _:
                         raise Exception(f"Unimplemented command: {step.root.command}")
                 end_cnt = len(self.__selected_chunks)
