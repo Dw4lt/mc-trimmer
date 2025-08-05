@@ -37,9 +37,10 @@ class Chunk(Serializable):
         if length > 0:
             match self._compression:
                 case Compression.ZLIB:
-                    self.decompressed_data = zlib.decompress(data)[3:]  # 3 bytes removes root tag opening
+                    # 3 bytes: removes root tag opening
+                    self.decompressed_data = zlib.decompressobj().decompress(data)[3:]
                 case _:
-                    assert False
+                    assert False, f"Unknow compression type '{self._compression}'"
 
     @property
     def InhabitedTime(self) -> int:
