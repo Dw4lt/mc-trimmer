@@ -29,8 +29,10 @@ class Entity(Serializable):
         return sub in self.decompressed_data
 
     @classmethod
-    def from_bytes(cls: type[Self], data: bytes) -> Self:
+    def from_bytes(cls: type[Self], data: bytes) -> Self | None:
         length, compression = struct.unpack(">IB", data[: Sizes.CHUNK_HEADER_SIZE])
+        if length == 0:
+            return None
         nbt_data = data[Sizes.CHUNK_HEADER_SIZE :]  # Sizes.CHUNK_HEADER_SIZE + length - 1]
         compression = Compression(compression)
         post_chunk_data = data[Sizes.CHUNK_HEADER_SIZE + length :]
@@ -62,8 +64,10 @@ class EntitiesFile(RegionLike):
                     start = loc.offset * Sizes.CHUNK_SIZE_MULTIPLIER
                     entity_data = data[start : start + loc.size * Sizes.CHUNK_SIZE_MULTIPLIER]
                     try:
-                        d = ChunkDataBase(data=Entity.from_bytes(entity_data), location=loc, timestamp=ts, index=i)
-                        self.entity_data.append(d)
+                        entity = Entity.from_bytes(entity_data)
+                        if entity is None:
+                            continue
+                        self.entity_data.append(ChunkDataBase(data=entity, location=loc, timestamp=ts, index=i))
                     except Exception as e:
                         rich.print(e)
 
