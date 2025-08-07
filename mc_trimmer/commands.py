@@ -89,7 +89,7 @@ class CommandError:
 
 class Command(ABC, Generic[T]):
     @abstractmethod
-    def run(self, manager: RegionManager, region_name: str) -> T: ...
+    def run(self, manager: RegionManager, region_name: str) -> T | CommandError: ...
 
 
 class Trim(Command[None]):
@@ -130,20 +130,21 @@ class ChunkMetadata:
         return self.x // 32, self.y // 32
 
 
-class GatherMetadata(Command[list[ChunkMetadata]]):
+class GatherMetadata(Command[list[ChunkMetadata | CommandError]]):
     def __init__(self) -> None:
         super().__init__()
 
     @staticmethod
-    def _gather_metadata(region: Region) -> Iterable[ChunkMetadata]:
+    def _gather_metadata(region: Region) -> Iterable[ChunkMetadata | CommandError]:
         for i, chunk, entity in region.iterate():
             try:
                 yield ChunkMetadata(x=chunk.xPos, y=chunk.zPos, inhabited_time=chunk.InhabitedTime)
-            except Exception:
-                pass
+            except Exception as e:
+                e.add_note(f"Chunk ({i}) of region {region.file_name} appears corrupt")
+                yield CommandError(e, traceback.format_exc())
 
     @override
-    def run(self, manager: RegionManager, region_name: str) -> list[ChunkMetadata]:
+    def run(self, manager: RegionManager, region_name: str) -> list[ChunkMetadata | CommandError]:
         region: Region = manager.open_file(file_name=region_name)
         return list(self._gather_metadata(region))
 
@@ -387,10 +388,15 @@ class PipelineExecutor:
             command=GatherMetadata(),
         ):
             match result:
-                case [*content] if len(content) == 0 or isinstance(content[0], ChunkMetadata):
-                    self.__available_chunks.update(content)
                 case CommandError() as err:
                     rich.print(err)
+                case list() as content:
+                    for c in content:
+                        match c:
+                            case ChunkMetadata() as cm:
+                                self.__available_chunks.add(cm)
+                            case CommandError() as err:
+                                rich.print(err)
                 case _:
                     raise Exception(f"Unknown scenario: {result}")
             prog.advance(gather_metadata)
