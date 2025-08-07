@@ -193,26 +193,29 @@ class PipelineExecutor:
         self.__region_manager = RegionManager(self.__paths)
         pass
 
-    def setup(self, prog: progress.Progress):
+    def setup(self, pool: Pool, prog: progress.Progress):
         self.__regions.extend(self._gather_all_regions())
         prog.log(f"Found {len(self.__regions)} regions.")
 
-        self._gather_all_chunks(prog)
+        self._gather_all_chunks(pool, prog)
         if self.__pipeline.start_with == Start.ALL_CHUNKS_SELECTED:
             self.__selected_chunks = self.__available_chunks
         prog.log(f"Starting selection: {len(self.__selected_chunks)}/{len(self.__available_chunks)} chunks")
 
     def execute(self):
-        with progress.Progress(
-            progress.SpinnerColumn(finished_text="✅"),
-            progress.TextColumn("[progress.description]{task.description}"),
-            progress.BarColumn(),
-            progress.MofNCompleteColumn(),
-            progress.TaskProgressColumn(show_speed=True),
-            progress.TimeElapsedColumn(),
-            progress.TimeRemainingColumn(),
-        ) as prog:
-            self.setup(prog)
+        with (
+            progress.Progress(
+                progress.SpinnerColumn(finished_text="✅"),
+                progress.TextColumn("[progress.description]{task.description}"),
+                progress.BarColumn(),
+                progress.MofNCompleteColumn(),
+                progress.TaskProgressColumn(show_speed=True),
+                progress.TimeElapsedColumn(),
+                progress.TimeRemainingColumn(),
+            ) as prog,
+            Pool(self.__pipeline.threads) as pool,
+        ):
+            self.setup(pool, prog)
 
             pipeline_length = len(self.__pipeline.command_chain)
             for step_nr, step in enumerate(self.__pipeline.command_chain, 1):
@@ -234,9 +237,9 @@ class PipelineExecutor:
                         )
                         self.__selected_chunks.update(
                             self._radially_expand_selection(
+                                pool=pool,
                                 prog=prog,
                                 task=task,
-                                threads=self.__pipeline.threads,
                                 select_radius=expand.radius,
                                 available_chunks=self.__available_chunks,
                                 selection=self.__selected_chunks,
@@ -299,9 +302,9 @@ class PipelineExecutor:
     @staticmethod
     def _radially_expand_selection(
         *,
+        pool: Pool,
         prog: progress.Progress,
         task: progress.TaskID,
-        threads: int,
         select_radius: int,
         available_chunks: set[ChunkMetadata],
         selection: set[ChunkMetadata],
@@ -332,16 +335,16 @@ class PipelineExecutor:
 
         coords_to_include: set[tuple[int, int]] = set()
 
-        with Pool(threads) as pool:
-            batch_size = 500
-            for i, res in enumerate(
-                pool.imap_unordered(
-                    filter_for_neighbors,
-                    itertools.batched(selected_coords, n=batch_size),
-                )
-            ):
-                prog.advance(task, advance=min(batch_size, len(selection) - i * batch_size))
-                coords_to_include.update(res & currently_unselected_coords)
+        batch_size = 500
+        for i, res in enumerate(
+            pool.imap_unordered(
+                filter_for_neighbors,
+                itertools.batched(selected_coords, n=batch_size),
+            )
+        ):
+            prog.advance(task, advance=min(batch_size, len(selection) - i * batch_size))
+            coords_to_include.update(res & currently_unselected_coords)
+
         expanded_selection = selection | set(filter(lambda c: (c.x, c.y) in coords_to_include, available_chunks))
         return expanded_selection
 
@@ -375,18 +378,15 @@ class PipelineExecutor:
     def _gather_all_regions(self) -> set[str]:
         return set(RegionLike.get_regions(self.__paths.inp_region))
 
-    def _gather_all_chunks(self, prog: progress.Progress):
+    def _gather_all_chunks(self, pool: Pool, prog: progress.Progress):
         gather_metadata = prog.add_task(
             f"Gathering metadata on all {len(self.__regions)} regions in '{self.__pipeline.input_folder}'",
             start=True,
             total=len(self.__regions),
         )
-        for result in process_world(
-            region_manager=self.__region_manager,
-            threads=self.__pipeline.threads,
-            region_file_names=self.__regions,
-            command=GatherMetadata(),
-        ):
+
+        foo = partial(error_handling_wrapper, self.__region_manager, GatherMetadata())
+        for result in pool.imap_unordered(func=foo, iterable=self.__regions, chunksize=50):
             match result:
                 case CommandError() as err:
                     rich.print(err)
