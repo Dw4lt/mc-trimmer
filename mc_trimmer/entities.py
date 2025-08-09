@@ -1,5 +1,4 @@
 from typing import override
-import zlib
 
 import rich
 from .primitives import *
@@ -8,17 +7,13 @@ from .primitives import *
 class Entity(Serializable):
     def __init__(
         self,
-        length: int = 0,
         compression: Compression = Compression.ZLIB,
-        data: bytes = b"",
         compressed_data: bytes = b"",
+        decompressed_data: bytes = b"",
     ) -> None:
         self._compression: Compression = compression
         self._compressed_data: bytes = compressed_data
-        self.decompressed_data: bytes = b""
-
-        if length > 0:
-            self.decompressed_data = zlib.decompress(data)[3:]  # 3 bytes removes root tag opening
+        self.decompressed_data: bytes = decompressed_data
 
     def contains_id(self, id: str) -> bool:
         if len(self.decompressed_data) == 0:
@@ -33,14 +28,12 @@ class Entity(Serializable):
         length, compression = struct.unpack(">IB", data[: Sizes.CHUNK_HEADER_SIZE])
         if length == 0:
             return None
-        nbt_data = data[Sizes.CHUNK_HEADER_SIZE :]  # Sizes.CHUNK_HEADER_SIZE + length - 1]
+        nbt_data = data[Sizes.CHUNK_HEADER_SIZE : Sizes.CHUNK_HEADER_SIZE - 1 + length]
         compression = Compression(compression)
-        post_chunk_data = data[Sizes.CHUNK_HEADER_SIZE + length :]
-        if len(post_chunk_data) > 0:
-            if post_chunk_data[0] != 0:
-                pass
-                # print(f"Warning: post-chunk data was padded with non-zero values: {bytes(post_chunk_data[:100])}")
-        return cls(length=length, compression=compression, data=nbt_data, compressed_data=data)
+        decompressed = decompress(nbt_data, compression)
+        if decompressed is None:
+            return None
+        return cls(compression=compression, compressed_data=data, decompressed_data=decompressed)
 
     def __bytes__(self) -> bytes:
         return bytes(self._compressed_data)
