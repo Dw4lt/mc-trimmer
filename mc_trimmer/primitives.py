@@ -145,11 +145,12 @@ class ArrayOfSerializable[CLS: Serializable](list[CLS]):
         self._cls: Type[CLS] = cls
 
     def from_bytes(self, data: bytes) -> "ArrayOfSerializable[CLS]":
+        element_size = self._cls.STATIC_SIZE()
         for i in range(self._len):
-            start = i * self._cls.STATIC_SIZE()
-            end = (i + 1) * self._cls.STATIC_SIZE()
+            start = i * element_size
+            end = (i + 1) * element_size
             member_data = data[start:end]
-            assert len(member_data) == self._cls.STATIC_SIZE()
+            assert len(member_data) == element_size
             member: CLS | None = self._cls.from_bytes(member_data)
             if member is not None:
                 self.append(member)
