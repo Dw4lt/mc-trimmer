@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from enum import IntEnum
 from pathlib import Path
 from typing import Callable, Generic, Iterable, Self, Type, TypeVar
+import zlib
 
 import rich
 
@@ -85,6 +86,32 @@ class Sizes(IntEnum):
     TIMESTAMPS_DATA_SIZE = 4 * 1024
     CHUNK_SIZE_MULTIPLIER = 4 * 1024
     CHUNK_HEADER_SIZE = 4 + 1
+
+
+def decompress_corrupt_zlib(data: memoryview) -> bytes:
+    ret: bytearray = bytearray()
+    dc = zlib.decompressobj()
+
+    try:
+        for i in data:
+            ret += dc.decompress(i)  # type: ignore
+    except Exception:
+        pass
+
+    return ret
+
+
+def decompress(data: memoryview, compression: Compression) -> bytes | None:
+    match compression:
+        case Compression.ZLIB:
+            try:
+                return zlib.decompressobj().decompress(data)
+            except Exception:
+                return decompress_corrupt_zlib(data)
+        case Compression.UNCOMPRESSED:
+            return data
+        case _:
+            assert False, f"Unknow compression type '{compression}'"
 
 
 class Meta(type):

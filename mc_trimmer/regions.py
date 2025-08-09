@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 import struct
-import zlib
 from pathlib import Path
 from typing import Callable, Iterable, Self, override
 
@@ -11,6 +10,7 @@ from .primitives import (
     ChunkDataBase,
     ChunkDataDict,
     Compression,
+    decompress,
     LocationData,
     RegionLike,
     Serializable,
@@ -25,22 +25,13 @@ from .primitives import (
 class Chunk(Serializable):
     def __init__(
         self,
-        length: int = 0,
         compression: Compression = Compression.ZLIB,
-        data: bytes = b"",
         compressed_data: bytes = b"",
+        decompressed_data: bytes = b"",
     ) -> None:
         self._compression: Compression = compression
         self._compressed_data: bytes = compressed_data
-
-        self.decompressed_data = b""
-        if length > 0:
-            match self._compression:
-                case Compression.ZLIB:
-                    # 3 bytes: removes root tag opening
-                    self.decompressed_data = zlib.decompressobj().decompress(data)[3:]
-                case _:
-                    assert False, f"Unknow compression type '{self._compression}'"
+        self.decompressed_data: bytes = decompressed_data
 
     @property
     def InhabitedTime(self) -> int:
@@ -67,13 +58,14 @@ class Chunk(Serializable):
         if length == 0:
             return None
         compression = Compression(compression)
-        nbt_data = data[Sizes.CHUNK_HEADER_SIZE :]  # Sizes.CHUNK_HEADER_SIZE + length - 1]
-        post_chunk_data = data[Sizes.CHUNK_HEADER_SIZE + length :]
-        if len(post_chunk_data) > 0:
-            if post_chunk_data[0] != 0:
-                pass
-                # print(f"Warning: post-chunk data was padded with non-zero values: {bytes(post_chunk_data[:100])}")
-        return cls(length=length, compression=compression, data=nbt_data, compressed_data=data)
+        # Compression is part of the length
+        nbt_data = data[Sizes.CHUNK_HEADER_SIZE : Sizes.CHUNK_HEADER_SIZE - 1 + length]
+
+        decompressed = decompress(nbt_data, compression)
+        if decompressed is None:
+            return None
+
+        return cls(compression=compression, compressed_data=data, decompressed_data=decompressed)
 
     def conditional_reset(self, condition: Callable[[Self], bool]) -> bool:
         if self._compressed_data != b"":
