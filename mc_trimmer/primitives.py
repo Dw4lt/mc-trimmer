@@ -2,7 +2,7 @@ import os
 import struct
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from enum import IntEnum
+from enum import Enum, IntEnum
 from pathlib import Path
 from typing import Callable, Generic, Iterable, Self, Type, TypeVar
 import zlib
@@ -66,19 +66,36 @@ T = TypeVar("T")
 S = TypeVar("S", bound="Serializable")
 
 
+class NbtTags(bytes, Enum):  # https://minecraft.wiki/w/NBT_format
+    TAG_END = b"\x00"
+    TAG_BYTE = b"\x01"
+    TAG_SHORT = b"\x02"
+    TAG_INT = b"\x03"
+    TAG_LONG = b"\x04"
+    TAG_FLOAT = b"\x05"
+    TAG_DOUBLE = b"\x06"
+    TAG_BYTE_ARRAY = b"\x07"
+    TAG_STRING = b"\x08"
+    TAG_LIST = b"\x09"
+    TAG_COMPOUND = b"\x0a"
+    TAG_INT_ARRAY = b"\x0b"
+    TAG_LONG_ARRAY = b"\x0c"
+
+
 class Strategy(Generic[T]):
-    def __init__(self, typ: bytes, payload_size: int, unpack: bytes, resulting_type: Type[T]) -> None:
-        self.typ: bytes = typ
+    def __init__(self, tag: bytes, payload_size: int, unpack: bytes, resulting_type: Type[T]) -> None:
+        self.typ: bytes = tag
         self.payload_size: int = payload_size
         self.unpack: bytes = unpack
         self.resulting_type: Type[T] = resulting_type
 
 
-BYTE_STRATEGY = Strategy(typ=b"\x01", payload_size=1, unpack=b">c", resulting_type=int)
-INT_STRATEGY = Strategy(typ=b"\x03", payload_size=4, unpack=b">i", resulting_type=int)
-LONG_STRATEGY = Strategy(typ=b"\x04", payload_size=8, unpack=b">Q", resulting_type=int)
-FLOAT_STRATEGY = Strategy(typ=b"\x05", payload_size=4, unpack=b">f", resulting_type=float)
-DOUBLE_STRATEGY = Strategy(typ=b"\x06", payload_size=8, unpack=b">d", resulting_type=float)
+BYTE_STRATEGY = Strategy(tag=NbtTags.TAG_BYTE, payload_size=1, unpack=b">c", resulting_type=int)
+SHORT_STRATEGY = Strategy(tag=NbtTags.TAG_SHORT, payload_size=2, unpack=b">b", resulting_type=int)
+INT_STRATEGY = Strategy(tag=NbtTags.TAG_INT, payload_size=4, unpack=b">i", resulting_type=int)
+LONG_STRATEGY = Strategy(tag=NbtTags.TAG_LONG, payload_size=8, unpack=b">Q", resulting_type=int)
+FLOAT_STRATEGY = Strategy(tag=NbtTags.TAG_FLOAT, payload_size=4, unpack=b">f", resulting_type=float)
+DOUBLE_STRATEGY = Strategy(tag=NbtTags.TAG_DOUBLE, payload_size=8, unpack=b">d", resulting_type=float)
 
 
 class Sizes(IntEnum):
