@@ -75,13 +75,13 @@ class CommandError:
     traceback: str
 
     def __str__(self) -> str:
-        return "\n".join(
-            (
-                "\n".join(self.exception.__notes__),
-                str(self.exception),
-                self.traceback,
-            )
-        )
+        lines = []
+        if hasattr(self.exception, "__notes__"):
+            lines.append("\n".join(self.exception.__notes__))
+        lines.append(str(self.exception))
+        if len(self.traceback) > 0:
+            lines.append(self.traceback)
+        return "\n".join(lines)
 
     def __repr__(self) -> str:
         return str(self)
