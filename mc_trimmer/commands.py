@@ -45,7 +45,7 @@ class RegionManager:
         if (self._paths.inp_entities / file_name).exists():
             entities = EntitiesFile.from_file(self._paths.inp_entities / file_name)
         if entities is None:
-            entities = EntitiesFile(b"", b"", b"")
+            entities = EntitiesFile(entity_data=ChunkDataDict[Entity]())
 
         return Region(region=region, entities=entities, file_name=file_name)
 

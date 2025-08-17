@@ -10,6 +10,8 @@ from .primitives import (
     ChunkDataBase,
     ChunkDataDict,
     Compression,
+    SerializableLocation,
+    Timestamp,
     decompress,
     LocationData,
     RegionLike,
@@ -57,15 +59,17 @@ class Chunk(Serializable):
         length, compression = struct.unpack(">IB", data[: Sizes.CHUNK_HEADER_SIZE])
         if length == 0:
             return None
+
+        if not compression in Compression:
+            raise Exception(f"'{compression}' is not a known compression scheme.")
         compression = Compression(compression)
+
         # Compression is part of the length
         nbt_data = data[Sizes.CHUNK_HEADER_SIZE : Sizes.CHUNK_HEADER_SIZE - 1 + length]
 
-        decompressed = decompress(nbt_data, compression)
-        if decompressed is None:
-            return None
-
-        return cls(compression=compression, compressed_data=data, decompressed_data=decompressed)
+        if decompressed := decompress(nbt_data, compression):
+            return cls(compression=compression, compressed_data=data, decompressed_data=decompressed)
+        return None
 
     def conditional_reset(self, condition: Callable[[Self], bool]) -> bool:
         if len(self._compressed_data) > 0:
@@ -83,32 +87,34 @@ class Chunk(Serializable):
 
 
 class RegionFile(RegionLike):
-    def __init__(self, chunk_location_data: bytes, timestamps_data: bytes, data: bytes) -> None:
-        self.chunk_data: ChunkDataDict[Chunk] = ChunkDataDict[Chunk]()
+    def __init__(
+        self,
+        chunks: ChunkDataDict[Chunk],
+    ) -> None:
+        self.chunk_data: ChunkDataDict[Chunk] = chunks
         self.dirty: bool = False
 
-        locations = LocationData().from_bytes(chunk_location_data)
-        timestamps = TimestampData().from_bytes(timestamps_data)
-
+    @staticmethod
+    def _extract_chunks(
+        data: memoryview,
+        locations: Iterable[SerializableLocation],
+        timestamps: Iterable[Timestamp],
+    ) -> Iterable[ChunkDataBase[Chunk]]:
         for i, (loc, ts) in enumerate(zip(locations, timestamps, strict=False)):
             if loc.size > 0 and loc.offset >= 2:
                 start = loc.offset * Sizes.CHUNK_SIZE_MULTIPLIER
                 data_slice = data[start : start + loc.size * Sizes.CHUNK_SIZE_MULTIPLIER]
-                chunk = Chunk.from_bytes(data_slice)
-                if chunk is None:
+                if len(data_slice) < loc.size * Sizes.CHUNK_SIZE_MULTIPLIER:
                     continue
 
-                # Tests:
-                # b = bytes(chunk)
-                # a = bytes(data_slice)
-                # assert a == b
-                self.chunk_data.append(ChunkDataBase(data=chunk, location=loc, timestamp=ts, index=i))
+                if chunk := Chunk.from_bytes(data_slice):
+                    yield ChunkDataBase(data=chunk, location=loc, timestamp=ts, index=i)
 
     def __bytes__(self) -> bytes:
         return RegionFile.to_bytes(data=self.chunk_data)
 
     def trim(self, condition: Callable[[Chunk], bool]):
-        for i, cd in self.chunk_data.items():
+        for _, cd in self.chunk_data.items():
             self.dirty |= cd.data.conditional_reset(condition)
 
     @classmethod
@@ -122,7 +128,15 @@ class RegionFile(RegionLike):
             timestamps_data: memoryview = data[
                 Sizes.LOCATION_DATA_SIZE : Sizes.LOCATION_DATA_SIZE + Sizes.TIMESTAMPS_DATA_SIZE
             ]
-            return RegionFile(chunk_location_data, timestamps_data, data)
+
+            locations = LocationData().from_bytes(chunk_location_data)
+            timestamps = TimestampData().from_bytes(timestamps_data)
+
+            chunks = ChunkDataDict[Chunk]()
+            for chunk in RegionFile._extract_chunks(data, locations, timestamps):
+                chunks.append(chunk)
+
+            return RegionFile(chunks)
 
     def reset_chunk(self, index: int) -> None:
         popped = self.chunk_data.pop(index, None)

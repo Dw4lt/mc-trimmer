@@ -1,6 +1,5 @@
 from typing import override
 
-import rich
 from .primitives import *
 
 
@@ -29,7 +28,11 @@ class Entity(Serializable):
         if length == 0:
             return None
         nbt_data = data[Sizes.CHUNK_HEADER_SIZE : Sizes.CHUNK_HEADER_SIZE - 1 + length]
+
+        if not compression in Compression:
+            raise Exception(f"'{compression}' is not a known compression scheme.")
         compression = Compression(compression)
+
         decompressed = decompress(nbt_data, compression)
         if decompressed is None:
             return None
@@ -44,25 +47,23 @@ class Entity(Serializable):
 
 
 class EntitiesFile(RegionLike):
-    def __init__(self, location_data: bytes, timestamp_data: bytes, data: bytes) -> None:
-        self.entity_data: ChunkDataDict[Entity] = ChunkDataDict[Entity]()
+    def __init__(self, entity_data: ChunkDataDict[Entity]) -> None:
+        self.entity_data: ChunkDataDict[Entity] = entity_data
         self.dirty: bool = False
 
-        if len(location_data) > 0:
-            locations: ArrayOfSerializable[SerializableLocation] = LocationData().from_bytes(location_data)
-            timestamps: ArrayOfSerializable[Timestamp] = TimestampData().from_bytes(timestamp_data)
+    @staticmethod
+    def _extract_chunks(
+        locations: Iterable[SerializableLocation],
+        timestamps: Iterable[Timestamp],
+        data: memoryview,
+    ) -> Iterable[ChunkDataBase[Entity]]:
 
-            for i, (loc, ts) in enumerate(zip(locations, timestamps, strict=False)):
-                if loc.size > 0 and loc.offset >= 2:
-                    start = loc.offset * Sizes.CHUNK_SIZE_MULTIPLIER
-                    entity_data = data[start : start + loc.size * Sizes.CHUNK_SIZE_MULTIPLIER]
-                    try:
-                        entity = Entity.from_bytes(entity_data)
-                        if entity is None:
-                            continue
-                        self.entity_data.append(ChunkDataBase(data=entity, location=loc, timestamp=ts, index=i))
-                    except Exception as e:
-                        rich.print(e)
+        for i, (loc, ts) in enumerate(zip(locations, timestamps, strict=False)):
+            if loc.size > 0 and loc.offset >= 2:
+                start = loc.offset * Sizes.CHUNK_SIZE_MULTIPLIER
+                entity_data = data[start : start + loc.size * Sizes.CHUNK_SIZE_MULTIPLIER]
+                if entity := Entity.from_bytes(entity_data):
+                    yield ChunkDataBase[Entity](data=entity, location=loc, timestamp=ts, index=i)
 
     def __bytes__(self) -> bytes:
         return RegionLike.to_bytes(self.entity_data)
@@ -77,7 +78,16 @@ class EntitiesFile(RegionLike):
             timestamps_data: bytes = data[
                 Sizes.LOCATION_DATA_SIZE : Sizes.LOCATION_DATA_SIZE + Sizes.TIMESTAMPS_DATA_SIZE
             ]
-            return EntitiesFile(chunk_location_data, timestamps_data, data)
+
+            locations: ArrayOfSerializable[SerializableLocation] = LocationData().from_bytes(chunk_location_data)
+            timestamps: ArrayOfSerializable[Timestamp] = TimestampData().from_bytes(timestamps_data)
+
+            entity_data: ChunkDataDict[Entity] = ChunkDataDict[Entity]()
+            if len(chunk_location_data) > 0:
+                for chunk in EntitiesFile._extract_chunks(locations, timestamps, data):
+                    entity_data.append(chunk)
+
+            return EntitiesFile(entity_data)
 
     def trim(self, condition: Callable[[Entity], bool]):
         to_delete: list[int] = []
