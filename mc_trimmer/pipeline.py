@@ -47,7 +47,7 @@ class RadiallyExpandSelection(BaseModel):
 
 class DeleteSelected(BaseModel):
     command: Literal["delete_selected_chunks"] = Field(description="Delete all chunks in selection.")
-    backup: Backup = Field(description="Before deletion, back up the relevant chunks.")
+    backup: Backup | None = Field(description="Before deletion, back up the relevant chunks.", default=None)
 
 
 class SaveSelection(BaseModel):
