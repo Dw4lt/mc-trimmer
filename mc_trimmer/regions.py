@@ -68,7 +68,7 @@ class Chunk(Serializable):
         return cls(compression=compression, compressed_data=data, decompressed_data=decompressed)
 
     def conditional_reset(self, condition: Callable[[Self], bool]) -> bool:
-        if self._compressed_data != b"":
+        if len(self._compressed_data) > 0:
             if condition(self):
                 self._compressed_data = b""
                 return True
@@ -86,7 +86,6 @@ class RegionFile(RegionLike):
     def __init__(self, chunk_location_data: bytes, timestamps_data: bytes, data: bytes) -> None:
         self.chunk_data: ChunkDataDict[Chunk] = ChunkDataDict[Chunk]()
         self.dirty: bool = False
-        assert len(chunk_location_data) > 0
 
         locations = LocationData().from_bytes(chunk_location_data)
         timestamps = TimestampData().from_bytes(timestamps_data)
@@ -113,11 +112,14 @@ class RegionFile(RegionLike):
             self.dirty |= cd.data.conditional_reset(condition)
 
     @classmethod
-    def from_file(cls, region: Path) -> "RegionFile":
+    def from_file(cls, region: Path) -> "RegionFile | None":
         with open(region, "rb") as f:
             data = memoryview(f.read()).toreadonly()
-            chunk_location_data: bytes = data[: Sizes.LOCATION_DATA_SIZE]
-            timestamps_data: bytes = data[
+            if len(data) < Sizes.LOCATION_DATA_SIZE + Sizes.TIMESTAMPS_DATA_SIZE:
+                return None
+
+            chunk_location_data: memoryview = data[: Sizes.LOCATION_DATA_SIZE]
+            timestamps_data: memoryview = data[
                 Sizes.LOCATION_DATA_SIZE : Sizes.LOCATION_DATA_SIZE + Sizes.TIMESTAMPS_DATA_SIZE
             ]
             return RegionFile(chunk_location_data, timestamps_data, data)

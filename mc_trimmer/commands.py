@@ -36,12 +36,15 @@ class RegionManager:
     def __init__(self, paths: Paths) -> None:
         self._paths: Paths = paths
 
-    def open_file(self, file_name: str) -> Region:
+    def open_file(self, file_name: str) -> Region | None:
         region = RegionFile.from_file(self._paths.inp_region / file_name)
+        if region is None:
+            return None
 
+        entities: EntitiesFile | None = None
         if (self._paths.inp_entities / file_name).exists():
             entities = EntitiesFile.from_file(self._paths.inp_entities / file_name)
-        else:
+        if entities is None:
             entities = EntitiesFile(b"", b"", b"")
 
         return Region(region=region, entities=entities, file_name=file_name)
@@ -114,7 +117,9 @@ class Trim(Command[None]):
 
     @override
     def run(self, manager: RegionManager, region_name: str) -> None:
-        region: Region = manager.open_file(file_name=region_name)
+        region: Region | None = manager.open_file(file_name=region_name)
+        if region is None:
+            return
         self.trim(region=region, elimination_condition=self._criteria)
         manager.save_to_file(region=region, file_name=region_name)
 
@@ -144,8 +149,10 @@ class GatherMetadata(Command[list[ChunkMetadata | CommandError]]):
                 yield CommandError(e, traceback.format_exc())
 
     @override
-    def run(self, manager: RegionManager, region_name: str) -> list[ChunkMetadata | CommandError]:
-        region: Region = manager.open_file(file_name=region_name)
+    def run(self, manager: RegionManager, region_name: str) -> list[ChunkMetadata | CommandError] | CommandError:
+        region: Region | None = manager.open_file(file_name=region_name)
+        if region is None:
+            return CommandError(Exception(f"Region {region_name} could not be loaded"), traceback="")
         return list(self._gather_metadata(region))
 
 

@@ -68,9 +68,11 @@ class EntitiesFile(RegionLike):
         return RegionLike.to_bytes(self.entity_data)
 
     @classmethod
-    def from_file(cls, file: Path) -> "EntitiesFile":
+    def from_file(cls, file: Path) -> "EntitiesFile | None":
         with open(file, "+rb") as f:
             data = memoryview(f.read()).toreadonly()
+            if len(data) < Sizes.LOCATION_DATA_SIZE + Sizes.TIMESTAMPS_DATA_SIZE:
+                return None
             chunk_location_data: bytes = data[: Sizes.LOCATION_DATA_SIZE]
             timestamps_data: bytes = data[
                 Sizes.LOCATION_DATA_SIZE : Sizes.LOCATION_DATA_SIZE + Sizes.TIMESTAMPS_DATA_SIZE
